@@ -1,3 +1,12 @@
+**/.DS_Store
+
+# large datasets
+data/release/data_prepare/data/kg_data/song_extra_info.csv
+data/release/data_prepare/data/kg_data/songs.csv
+data/release/data_prepare/data/kg_data/test.csv
+data/release/data_prepare/data/kg_data/train.csv
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
