@@ -1,10 +1,10 @@
 **/.DS_Store
 
 # large datasets
-data/music_data/song_extra_info.csv
-data/music_data/songs.csv
-data/music_data/test.csv
-data/music_data/train.csv
+data/song_data/song_extra_info.csv
+data/song_data/songs.csv
+data/song_data/test.csv
+data/song_data/train.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
