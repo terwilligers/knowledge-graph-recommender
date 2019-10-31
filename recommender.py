@@ -1,35 +1,76 @@
+import pickle
+import torch
+
 from model import KPRN
 from model import train
-from model import format_paths
-from model import construct_ix_to_etr
 from model import scores_from_paths
+
+from data.format import format_paths
+
+
+def load_sample_data():
+    '''
+    Constructs a couple fake hardcoded paths for testing
+    '''
+    with open('data/song_data/song_person.dict', 'rb') as handle:
+        song_person = pickle.load(handle)
+
+    with open('data/song_data/person_song.dict', 'rb') as handle:
+        person_song = pickle.load(handle)
+
+    with open('data/song_data/user_song.dict', 'rb') as handle:
+        user_song = pickle.load(handle)
+
+    user1 = list(user_song.keys())[0]
+    user2 = list(user_song.keys())[1]
+    song1 = list(song_person.keys())[0]
+    song2 = list(song_person.keys())[1]
+    song3 = list(song_person.keys())[2]
+    person1 = list(person_song.keys())[0]
+
+    training_data = [
+        ([[user1, 'user', 'user_song'], [song1, 'song', 'song_person'],
+            [person1, 'person', 'person_song'], [song2, 'song', '#END_RELATION']], 1),
+        ([[user1, 'user', 'user_song'], [song1, 'song', 'song_user'],
+            [user2, 'user', 'user_song'], [song3, 'song', '#END_RELATION']], 0),
+        ([[user1, 'user', 'user_song'], [song1, 'song', '#END_RELATION']], 1)
+    ]
+
+    return training_data
+
+
+def load_string_to_ix_dicts():
+    '''
+    Loads the dictionaries mapping entity, relation, and type to id
+    '''
+    with open('data/song_data_vocab/type_to_ix.dict', 'rb') as handle:
+        type_to_ix = pickle.load(handle)
+
+    with open('data/song_data_vocab/relation_to_ix.dict', 'rb') as handle:
+        relation_to_ix = pickle.load(handle)
+
+    with open('data/song_data_vocab/entity_to_ix.dict', 'rb') as handle:
+        entity_to_ix = pickle.load(handle)
+
+    return type_to_ix, relation_to_ix, entity_to_ix
+
 
 def main():
     '''
     Main function for our graph recommendation project,
-    will eventually have command line args for different tasks
+    will eventually have command line args for different items
     '''
-    #For now some hardcoded paths
-    training_data = [
-        ([['Sam', 'u', 'rate'], ['Song1', 's', 'category'], ['Pop', 't', '_belong'], ['Song2', 's', 'UNK']], 1),
-        ([['Sam', 'u', 'rate'], ['Song2', 's', 'UNK']], 1),
-        ([['Sam', 'u', 'rate'], ['Song1', 's', '_rate'], ['Joey', 'u', 'rate'],['Song3', 's', 'UNK']], 0),
-        ([['Sam', 'u', 'rate'], ['Song1', 's', '_rate'], ['Song3', 's', 'UNK']], 0)
-    ]
+    training_data = load_sample_data()
+    t_to_ix, r_to_ix, e_to_ix = load_string_to_ix_dicts()
 
-    #For now just construct example, later would want to automatically create maps from vocab
-    e_to_ix = {'Sam': 0, 'Weijia': 1, 'Rosa': 2, 'Joey':3, 'Song1': 4, 'Song2': 5, 'Song3': 6, 'Pop': 7}
-    t_to_ix = {'u': 0, 's': 1, 't': 2}
-    r_to_ix = {'rate': 0, 'category': 1, 'belong': 2, '_rate': 3, '_category': 4, '_belong':5, 'UNK': 6}
-
-    formatted_data = format_paths(training_data, e_to_ix, t_to_ix, r_to_ix)
+    padding_token = '#PAD_TOKEN'
+    formatted_data = format_paths(training_data, e_to_ix, t_to_ix, r_to_ix, padding_token)
     print(formatted_data)
 
-    model = train(formatted_data, e_to_ix, t_to_ix, r_to_ix)
+    model = train(formatted_data, len(e_to_ix), len(t_to_ix), len(r_to_ix))
 
-    ix_to_etr = construct_ix_to_etr(e_to_ix, t_to_ix, r_to_ix)
-
-    scores_from_paths(model, formatted_data, 3, ix_to_etr)
+    batch_size = 3
+    scores_from_paths(model, formatted_data, batch_size, e_to_ix, t_to_ix, r_to_ix)
 
 if __name__ == "__main__":
     main()
