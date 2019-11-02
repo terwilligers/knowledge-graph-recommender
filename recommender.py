@@ -1,11 +1,28 @@
 import pickle
 import torch
+import argparse
 
 from model import KPRN
 from model import train
 from model import scores_from_paths
-
 from data.format import format_paths
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--train',
+                        default=False,
+                        action='store_true',
+                        help='whether to train the model')
+    parser.add_argument('--eval',
+                        default=False,
+                        action='store_true',
+                        help='whether to evaluate the model')
+    parser.add_argument('--model_dir',
+                        type=str,
+                        default='/model',
+                        help='directory to save the model to')
+
+    return parser.parse_args()
 
 
 def load_sample_data():
@@ -60,17 +77,21 @@ def main():
     Main function for our graph recommendation project,
     will eventually have command line args for different items
     '''
-    training_data = load_sample_data()
-    t_to_ix, r_to_ix, e_to_ix = load_string_to_ix_dicts()
 
-    padding_token = '#PAD_TOKEN'
-    formatted_data = format_paths(training_data, e_to_ix, t_to_ix, r_to_ix, padding_token)
-    print(formatted_data)
+    args = parse_args()
 
-    model = train(formatted_data, len(e_to_ix), len(t_to_ix), len(r_to_ix))
+    if args.train:
+        training_data = load_sample_data()
+        t_to_ix, r_to_ix, e_to_ix = load_string_to_ix_dicts()
 
-    batch_size = 3
-    scores_from_paths(model, formatted_data, batch_size, e_to_ix, t_to_ix, r_to_ix)
+        padding_token = '#PAD_TOKEN'
+        formatted_data = format_paths(training_data, e_to_ix, t_to_ix, r_to_ix, padding_token)
+        print(formatted_data)
+
+        model = train(formatted_data, len(e_to_ix), len(t_to_ix), len(r_to_ix))
+
+        batch_size = 3
+        scores_from_paths(model, formatted_data, batch_size, e_to_ix, t_to_ix, r_to_ix)
 
 if __name__ == "__main__":
     main()
