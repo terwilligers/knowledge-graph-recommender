@@ -55,32 +55,34 @@ def build_paths(user, song):
         if entity == song:
             paths.append(front.path)
             continue
-        if type == user_type_idx:
+        if type == user_type_idx and entity in user_song:
             for song in user_song[entity]:
                 new_path = front.path[:]
                 new_path[-1][2] = user_song_rel_idx
                 new_path.append([song, song_type_idx, None])
                 new_state = PathState(new_path, front.length + 1)
                 queue.appendleft(new_state)
-        elif type == song_type_idx:
-            for user in song_user[entity]:
-                new_path = front.path[:]
-                new_path[-1][-2] = song_user_rel_idx
-                new_path.append([user, user_type_idx, None])
-                new_state = PathState(new_path, front.length + 1)
-                queue.appendleft(new_state)
-            # (note) Currently errors with this statement. Will fix later.
-            # for person in song_person[entity]:
-            #     new_path = front.path[:]
-            #     new_path[-1][-2] = song_person_rel_idx
-            #     new_path.append([person, person_type_idx, None])
-            #     new_state = PathState(new_path, front.length + 1)
-            #     queue.appendleft(new_state)
 
-        elif type == person_type_idx:
+        elif type == song_type_idx:
+            if entity in song_user:
+                for user in song_user[entity]:
+                    new_path = front.path[:]
+                    new_path[-1][2] = song_user_rel_idx
+                    new_path.append([user, user_type_idx, None])
+                    new_state = PathState(new_path, front.length + 1)
+                    queue.appendleft(new_state)
+            if entity in song_person:
+                for person in song_person[entity]:
+                    new_path = front.path[:]
+                    new_path[-1][2] = song_person_rel_idx
+                    new_path.append([person, person_type_idx, None])
+                    new_state = PathState(new_path, front.length + 1)
+                    queue.appendleft(new_state)
+
+        elif type == person_type_idx and entity in person_song:
             for song in person_song[entity]:
                 new_path = front.path[:]
-                new_path[-1][-2] = person_user_rel_idx
+                new_path[-1][2] = person_user_rel_idx
                 new_path.append([song, song_type_idx, None])
                 new_state = PathState(new_path, front.length + 1)
                 queue.appendleft(new_state)
