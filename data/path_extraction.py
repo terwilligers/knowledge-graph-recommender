@@ -7,6 +7,9 @@ user_type_idx = 1
 song_type_idx = 2
 
 user_song_rel_idx = 3
+song_user_rel_idx = 4
+song_person_rel_idx = 5
+person_song_rel_idx = 6
 
 class PathState:
     def __init__(self, path, length):
@@ -59,6 +62,29 @@ def build_paths(user, song):
                 new_path.append([song, song_type_idx, None])
                 new_state = PathState(new_path, front.length + 1)
                 queue.appendleft(new_state)
+        elif type == song_type_idx:
+            for user in song_user[entity]:
+                new_path = front.path[:]
+                new_path[-1][-2] = song_user_rel_idx
+                new_path.append([user, user_type_idx, None])
+                new_state = PathState(new_path, front.length + 1)
+                queue.appendleft(new_state)
+            # (note) Currently errors with this statement. Will fix later.
+            # for person in song_person[entity]:
+            #     new_path = front.path[:]
+            #     new_path[-1][-2] = song_person_rel_idx
+            #     new_path.append([person, person_type_idx, None])
+            #     new_state = PathState(new_path, front.length + 1)
+            #     queue.appendleft(new_state)
+
+        elif type == person_type_idx:
+            for song in person_song[entity]:
+                new_path = front.path[:]
+                new_path[-1][-2] = person_user_rel_idx
+                new_path.append([song, song_type_idx, None])
+                new_state = PathState(new_path, front.length + 1)
+                queue.appendleft(new_state)
+
         #Todo add other relationship types, maybe put in function
 
     return paths
