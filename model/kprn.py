@@ -4,13 +4,14 @@ import torch.nn.functional as F
 
 class KPRN(nn.Module):
 
-    def __init__(self, e_emb_dim, t_emb_dim, r_emb_dim, hidden_dim, vocab_size, tagset_size):
+    def __init__(self, e_emb_dim, t_emb_dim, r_emb_dim, hidden_dim, e_vocab_size,
+                 t_vocab_size, r_vocab_size, tagset_size):
         super(KPRN, self).__init__()
         self.hidden_dim = hidden_dim
 
-        self.entity_embeddings = nn.Embedding(vocab_size, e_emb_dim)
-        self.type_embeddings = nn.Embedding(vocab_size, t_emb_dim)
-        self.rel_embeddings = nn.Embedding(vocab_size, r_emb_dim)
+        self.entity_embeddings = nn.Embedding(e_vocab_size, e_emb_dim)
+        self.type_embeddings = nn.Embedding(t_vocab_size, t_emb_dim)
+        self.rel_embeddings = nn.Embedding(r_vocab_size, r_emb_dim)
 
         # The LSTM takes word embeddings as inputs, and outputs hidden states
         # with dimensionality hidden_dim.
