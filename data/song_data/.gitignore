@@ -1,0 +1,9 @@
+person_id.txt
+user_id.txt
+song_id.txt
+id_type.dict
+song_person.dict
+person_song.dict
+song_user.dict
+user_song.dict
+user_song_tuple.txt
