@@ -80,7 +80,19 @@ def main():
 
     args = parse_args()
 
+    #TODO: Load dense subgraph here
+
     if args.train:
+        #TODO: Load training set of user item interactions,
+        #For each user song interaction in training set, find 4 negative items (art of construction)
+
+        #Then for each user item pair in training set, find all paths, and save these to disk
+        #Can have command line arg for if we load them or compute them
+
+        #for each user item interaction, label set of paths with 0 or 1 for whether it occured or not
+        #This is where we need to change the model, right now it takes (path, target)
+        #tuples as inputs, but we want (list of paths, target) inputs
+
         training_data = load_sample_data()
         t_to_ix, r_to_ix, e_to_ix = load_string_to_ix_dicts()
 

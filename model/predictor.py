@@ -8,6 +8,7 @@ from model import sort_batch
 def convert_to_etr(e_to_ix, t_to_ix, r_to_ix, path, length):
     '''
     Converts a path of ids back to the original input format
+    TODO: eventually just use saved inverse dictionaries for this
     '''
     ix_to_t = {v: k for k, v in t_to_ix.items()}
     ix_to_r = {v: k for k, v in r_to_ix.items()}
