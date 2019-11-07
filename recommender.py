@@ -4,7 +4,6 @@ import argparse
 
 from model import KPRN
 from model import train
-from model import scores_from_paths
 from data.format import format_paths
 
 def parse_args():
@@ -21,6 +20,10 @@ def parse_args():
                         type=str,
                         default='/model',
                         help='directory to save the model to')
+    parser.add_argument('--epochs',
+                        type=int,
+                        default=1,
+                        help='number of epochs for training model')
 
     return parser.parse_args()
 
@@ -29,13 +32,13 @@ def load_sample_data():
     '''
     Constructs a couple fake hardcoded paths for testing
     '''
-    with open('data/song_data/song_person.dict', 'rb') as handle:
+    with open('data/song_data_vocab/song_person_ix.dict', 'rb') as handle:
         song_person = pickle.load(handle)
 
-    with open('data/song_data/person_song.dict', 'rb') as handle:
+    with open('data/song_data_vocab/person_song_ix.dict', 'rb') as handle:
         person_song = pickle.load(handle)
 
-    with open('data/song_data/user_song.dict', 'rb') as handle:
+    with open('data/song_data_vocab/user_song_ix.dict', 'rb') as handle:
         user_song = pickle.load(handle)
 
     user1 = list(user_song.keys())[0]
@@ -45,12 +48,29 @@ def load_sample_data():
     song3 = list(song_person.keys())[2]
     person1 = list(person_song.keys())[0]
 
+    # training_data = [
+    #     ([[user1, 1, 2], [song1, 2, 0],
+    #         [person1, 0, 1], [song2, 2, 5]], 1),
+    #     ([[user1, 1, 2], [song1, 2, 3],
+    #         [user2, 1, 2], [song3, 2, 5]], 0),
+    #     ([[user1, 1, 2], [song1, 2, 5]], 1)
+    # ]
+
+
+    #first item in tuple is list of paths, 2nd item is if interaction occured
     training_data = [
-        ([[user1, 'user', 'user_song'], [song1, 'song', 'song_person'],
-            [person1, 'person', 'person_song'], [song2, 'song', '#END_RELATION']], 1),
-        ([[user1, 'user', 'user_song'], [song1, 'song', 'song_user'],
-            [user2, 'user', 'user_song'], [song3, 'song', '#END_RELATION']], 0),
-        ([[user1, 'user', 'user_song'], [song1, 'song', '#END_RELATION']], 1)
+        ([[[user1, 1, 2], [song1, 2, 0],
+            [person1, 0, 1], [song2, 2, 5]],
+          [[user1, 1, 2], [song1, 2, 3],
+                [user2, 1, 2], [song2, 2, 5]],
+          [[user1, 1, 2], [song2, 2, 5]]], 1),
+
+        ([[[user1, 1, 2], [song1, 2, 0],
+            [person1, 0, 1], [song3, 2, 5]],
+          [[user1, 1, 2], [song1, 2, 3],
+             [user2, 1, 2], [song3, 2, 5]]], 0),
+
+        ([[[user1, 1, 2], [song1, 2, 5]]], 1),
     ]
 
     return training_data
@@ -84,26 +104,23 @@ def main():
 
     if args.train:
         #TODO: Load training set of user item interactions,
-        #For each user song interaction in training set, find 4 negative items (art of construction)
-
         #Then for each user item pair in training set, find all paths, and save these to disk
-        #Can have command line arg for if we load them or compute them
-
         #for each user item interaction, label set of paths with 0 or 1 for whether it occured or not
-        #This is where we need to change the model, right now it takes (path, target)
-        #tuples as inputs, but we want (list of paths, target) inputs
 
-        training_data = load_sample_data()
         t_to_ix, r_to_ix, e_to_ix = load_string_to_ix_dicts()
 
+        #sample data is a list of (path_list, target) tuples
+        training_data = load_sample_data()
+        print(training_data)
+
         padding_token = '#PAD_TOKEN'
+
         formatted_data = format_paths(training_data, e_to_ix, t_to_ix, r_to_ix, padding_token)
         print(formatted_data)
 
-        model = train(formatted_data, len(e_to_ix), len(t_to_ix), len(r_to_ix))
-
         batch_size = 3
-        scores_from_paths(model, formatted_data, batch_size, e_to_ix, t_to_ix, r_to_ix)
+        model = train(formatted_data, batch_size, args.epochs, len(e_to_ix), len(t_to_ix), len(r_to_ix))
+
 
 if __name__ == "__main__":
     main()

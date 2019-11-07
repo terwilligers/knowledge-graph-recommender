@@ -8,17 +8,38 @@ from torch.utils.data import DataLoader
 
 from model import KPRN
 
-def sort_batch(batch, targets, lengths):
+class InteractionData(Dataset):
+    def __init__(self, formatted_data):
+        self.data = formatted_data
+
+    def __getitem__(self, index):
+        return self.data[index]
+
+    def __len__(self):
+        return len(self.data)
+
+
+def my_collate(batch):
+    '''
+    Custom dataloader collate function since we have tuples of lists of paths
+    '''
+    data = [item[0] for item in batch]
+    target = [item[1] for item in batch]
+    target = torch.LongTensor(target)
+    return [data, target]
+
+
+def sort_batch(batch, indexes, lengths):
     '''
     sorts a batch of paths by path length, in decreasing order
     '''
     seq_lengths, perm_idx = lengths.sort(0, descending=True)
     seq_tensor = batch[perm_idx]
-    target_tensor = targets[perm_idx]
-    return seq_tensor, target_tensor, seq_lengths
+    indexes_tensor = indexes[perm_idx]
+    return seq_tensor, indexes_tensor, seq_lengths
 
 
-def train(formatted_data, e_vocab_size, t_vocab_size, r_vocab_size):
+def train(formatted_data, batch_size, epochs, e_vocab_size, t_vocab_size, r_vocab_size):
     '''
     -trains and outputs a model using the input data
     -formatted_data is a list of path lists, each of which consists of tuples of
@@ -42,13 +63,28 @@ def train(formatted_data, e_vocab_size, t_vocab_size, r_vocab_size):
     optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=.001)
 
     #DataLoader used for batches
-    train_loader = DataLoader(dataset=formatted_data, batch_size=3, shuffle=False)
+    interaction_data = InteractionData(formatted_data)
+    train_loader = DataLoader(dataset=interaction_data, collate_fn = my_collate, batch_size=batch_size, shuffle=False)
 
-    for epoch in range(300):  # tiny data so 300 epochs
-        for path_batch, targets, lengths in train_loader:
+    for epoch in range(epochs):
+        for interaction_batch, targets in train_loader:
+            #construct tensor of all paths in batch, tensor of all lengths, and tensor of interaction id
+            paths = []
+            lengths = []
+            inter_ids = []
+            for inter_id, interaction_paths in enumerate(interaction_batch):
+                for path, length in interaction_paths:
+                    paths.append(path)
+                    lengths.append(length)
+                inter_ids.extend([inter_id for i in range(len(interaction_paths))])
+
+            inter_ids = torch.tensor(inter_ids, dtype = torch.long)
+            paths = torch.tensor(paths, dtype=torch.long)
+            lengths = torch.tensor(lengths, dtype=torch.long)
+
 
             #sort based on path lengths, largest first, so that we can pack paths
-            s_path_batch, s_targets, s_lengths = sort_batch(path_batch, targets, lengths)
+            s_path_batch, s_inter_ids, s_lengths = sort_batch(paths, inter_ids, lengths)
 
             #Pytorch accumulates gradients, so we need to clear before each instance
             model.zero_grad()
@@ -56,13 +92,29 @@ def train(formatted_data, e_vocab_size, t_vocab_size, r_vocab_size):
             #Run the forward pass.
             tag_scores = model(s_path_batch, s_lengths)
 
+            #Get averages of scores over interaction id groups (eventually do weighted pooling layer here)
+            start = True
+            for i in range(len(interaction_batch)):
+                #get inds for this interaction
+                inter_idxs = torch.where(s_inter_ids == i)
+                #average scores for this interaction
+                avg_score = torch.mean(tag_scores[inter_idxs], dim=0)
+                if start:
+                    #unsqueeze turns it into 2d tensor, so that we can concatenate along existing dim
+                    avg_scores = avg_score.unsqueeze(0)
+                    start = not start
+                else:
+                    avg_scores = torch.cat((avg_scores, avg_score.unsqueeze(0)), dim = 0)
+
             #Compute the loss, gradients, and update the parameters by calling .step()
-            loss = loss_function(tag_scores, s_targets)
+            loss = loss_function(avg_scores, targets)
             loss.backward()
             optimizer.step()
 
             # print statistics
-            if epoch % 30 == 0:
+            if epoch % 10 == 0:
+                print(avg_scores)
+                print(targets)
                 print("loss is:", loss.item())
 
     return model

@@ -21,20 +21,9 @@ def convert_to_etr(e_to_ix, t_to_ix, r_to_ix, path, length):
     return new_path
 
 
-def scores_from_paths(model, paths, batch_size, e_to_ix, t_to_ix, r_to_ix):
+def predict(model, user, entity):
     '''
     -model is our KPRN model
-    -paths is a list of path lists, each of which consists of tuples of
-    (path, tag, path_length), where the path is padded
+    -outputs score for interaction (will call model with torch.no_grad())
     '''
-    with torch.no_grad():
-        print("paths and scores of form: [loss for tag 0, loss for tag 1]:")
-        print()
-        test_loader = DataLoader(dataset=paths, batch_size=batch_size, shuffle=False)
-        for path_batch, target_batch, lengths in test_loader:
-            s_path_batch, s_targets, s_lengths = sort_batch(path_batch, target_batch, lengths)
-            tag_scores = model(s_path_batch, s_lengths)
-
-            for i, ix_path in enumerate(s_path_batch):
-                print(convert_to_etr(e_to_ix, t_to_ix, r_to_ix, ix_path, s_lengths[i]))
-                print(tag_scores[i])
+    pass
