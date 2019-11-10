@@ -54,4 +54,13 @@ class KPRN(nn.Module):
         #return F.relu(tag_score)
         return F.log_softmax(tag_scores, dim=1)
 
-    #TODO: construct weighted pooling function, that can be called in predictoe
+    def weighted_pooling(self, path_scores, gamma):
+        '''
+        :param path_scores (pytorch tensor): Path scores for one interaction
+        :param gamma (number): A hyper-parameter to control the exponential weight
+        :return final_score (float): An aggregated score of the path scores
+        '''
+        #assume path_scores of size (number of paths)
+        exp_weighted = torch.exp(torch.div(path_scores, gamma))
+        sum_exp = torch.sum(exp_weighted)
+        return torch.log(sum_exp).item()
