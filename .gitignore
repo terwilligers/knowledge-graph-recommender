@@ -6,6 +6,10 @@ data/song_data/songs.csv
 data/song_data/test.csv
 data/song_data/train.csv
 
+# localized pickles
+*.dict
+*nodes.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
