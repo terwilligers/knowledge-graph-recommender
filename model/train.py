@@ -96,24 +96,26 @@ def train(formatted_data, batch_size, epochs, e_vocab_size, t_vocab_size, r_voca
             start = True
             for i in range(len(interaction_batch)):
                 #get inds for this interaction
-                inter_idxs = torch.where(s_inter_ids == i)
-                #average scores for this interaction
-                avg_score = torch.mean(tag_scores[inter_idxs], dim=0)
+                inter_idxs = (s_inter_ids == i).nonzero().squeeze(1)
+
+                #weighted pooled scores for this interaction
+                pooled_score = model.weighted_pooling(tag_scores[inter_idxs])
+
                 if start:
                     #unsqueeze turns it into 2d tensor, so that we can concatenate along existing dim
-                    avg_scores = avg_score.unsqueeze(0)
+                    pooled_scores = pooled_score.unsqueeze(0)
                     start = not start
                 else:
-                    avg_scores = torch.cat((avg_scores, avg_score.unsqueeze(0)), dim = 0)
+                    pooled_scores = torch.cat((pooled_scores, pooled_score.unsqueeze(0)), dim=0)
 
             #Compute the loss, gradients, and update the parameters by calling .step()
-            loss = loss_function(avg_scores, targets)
+            loss = loss_function(pooled_scores, targets)
             loss.backward()
             optimizer.step()
 
             # print statistics
             if epoch % 10 == 0:
-                print(avg_scores)
+                print(pooled_scores)
                 print(targets)
                 print("loss is:", loss.item())
 
