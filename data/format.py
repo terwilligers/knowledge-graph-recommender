@@ -6,8 +6,8 @@ functions used for converting path data into format for KPRN model
 
 def format_paths(training_data, e_to_ix, t_to_ix, r_to_ix, padding_token):
     '''
-    Pads paths up to max path length, then converts data to triplets of
-    (padded path, tag, path length) replacing path items with ids
+    Pads paths up to max path length, converting each path into tuple
+    of (padded_path, path length)
     '''
 
     max_len = find_max_length(training_data)
@@ -26,7 +26,7 @@ def format_paths(training_data, e_to_ix, t_to_ix, r_to_ix, padding_token):
 
 def find_max_length(data_tuples):
     '''
-    Finds max path length in a list of (path, target) tuples
+    Finds max path length in a list of (interaction, target) tuples
     '''
     max_len = 0
     for (paths, _) in data_tuples:
@@ -37,7 +37,6 @@ def find_max_length(data_tuples):
 
 def pad_path(seq, e_to_ix, t_to_ix, r_to_ix, max_len, padding_token):
     '''
-    Constructs a tensor of item, type, and relation ids from a path
     Pads paths up to max path length
     '''
     relation_padding =  r_to_ix[padding_token]
