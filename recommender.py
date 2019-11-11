@@ -2,6 +2,7 @@ import pickle
 import torch
 import argparse
 
+import constants.consts as consts
 from model import KPRN
 from model import train
 from data.format import format_paths
@@ -47,15 +48,6 @@ def load_sample_data():
     song2 = list(song_person.keys())[1]
     song3 = list(song_person.keys())[2]
     person1 = list(person_song.keys())[0]
-
-    # training_data = [
-    #     ([[user1, 1, 2], [song1, 2, 0],
-    #         [person1, 0, 1], [song2, 2, 5]], 1),
-    #     ([[user1, 1, 2], [song1, 2, 3],
-    #         [user2, 1, 2], [song3, 2, 5]], 0),
-    #     ([[user1, 1, 2], [song1, 2, 5]], 1)
-    # ]
-
 
     #first item in tuple is list of paths, 2nd item is if interaction occured
     training_data = [
@@ -113,7 +105,7 @@ def main():
         training_data = load_sample_data()
         print(training_data)
 
-        padding_token = '#PAD_TOKEN'
+        padding_token = consts.PAD_TOKEN
 
         formatted_data = format_paths(training_data, e_to_ix, t_to_ix, r_to_ix, padding_token)
         print(formatted_data)
