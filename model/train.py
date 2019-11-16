@@ -3,9 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
+import constants.consts as consts
+
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
-
 from model import KPRN
 
 class InteractionData(Dataset):
@@ -29,7 +30,7 @@ def my_collate(batch):
     return [data, target]
 
 
-def sort_batch(batch, indexes, lengths):
+def sort_train_batch(batch, indexes, lengths):
     '''
     sorts a batch of paths by path length, in decreasing order
     '''
@@ -39,21 +40,13 @@ def sort_batch(batch, indexes, lengths):
     return seq_tensor, indexes_tensor, seq_lengths
 
 
-def train(formatted_data, batch_size, epochs, e_vocab_size, t_vocab_size, r_vocab_size):
+def train(model, formatted_data, batch_size, epochs):
     '''
     -trains and outputs a model using the input data
     -formatted_data is a list of path lists, each of which consists of tuples of
     (path, tag, path_length), where the path is padded to ensure same overall length
     '''
 
-    E_EMBEDDING_DIM = 3 #64 in paper
-    T_EMBEDDING_DIM = 3 #32 in paper
-    R_EMBEDDING_DIM = 3 #32 in paper
-    HIDDEN_DIM = 6 #this might be unit number = 256
-    TARGET_SIZE = 2
-
-    model = KPRN(E_EMBEDDING_DIM, T_EMBEDDING_DIM, R_EMBEDDING_DIM, HIDDEN_DIM, e_vocab_size,
-                 t_vocab_size, r_vocab_size, TARGET_SIZE)
     loss_function = nn.NLLLoss() #negative log likelihood loss
     #loss_function = nn.CrossEntropyLoss() #This seems to work with relu activation but nllloss does not
     #this is because crossEntropyLoss actually automatically adds the softmax layer to normalize results into p-distribution
@@ -84,7 +77,7 @@ def train(formatted_data, batch_size, epochs, e_vocab_size, t_vocab_size, r_voca
 
 
             #sort based on path lengths, largest first, so that we can pack paths
-            s_path_batch, s_inter_ids, s_lengths = sort_batch(paths, inter_ids, lengths)
+            s_path_batch, s_inter_ids, s_lengths = sort_train_batch(paths, inter_ids, lengths)
 
             #Pytorch accumulates gradients, so we need to clear before each instance
             model.zero_grad()
@@ -92,7 +85,7 @@ def train(formatted_data, batch_size, epochs, e_vocab_size, t_vocab_size, r_voca
             #Run the forward pass.
             tag_scores = model(s_path_batch, s_lengths)
 
-            #Get averages of scores over interaction id groups (eventually do weighted pooling layer here)
+            #Get weighted pooling of scores over interaction id groups
             start = True
             for i in range(len(interaction_batch)):
                 #get inds for this interaction
@@ -108,14 +101,17 @@ def train(formatted_data, batch_size, epochs, e_vocab_size, t_vocab_size, r_voca
                 else:
                     pooled_scores = torch.cat((pooled_scores, pooled_score.unsqueeze(0)), dim=0)
 
+            # take sigmoid of pooled scores
+            prediction_scores = torch.sigmoid(pooled_scores)
+
             #Compute the loss, gradients, and update the parameters by calling .step()
-            loss = loss_function(pooled_scores, targets)
+            loss = loss_function(prediction_scores, targets)
             loss.backward()
             optimizer.step()
 
             # print statistics
             if epoch % 10 == 0:
-                print(pooled_scores)
+                print(prediction_scores)
                 print(targets)
                 print("loss is:", loss.item())
 

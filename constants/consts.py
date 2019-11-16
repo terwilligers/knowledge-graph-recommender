@@ -11,3 +11,9 @@ SONG_USER_REL = 3
 UNK_REL = 4
 END_REL = 5
 PAD_REL = 6
+
+ENTITY_EMB_DIM = 64 #64 in paper
+TYPE_EMB_DIM =32 #32 in paper
+REL_EMB_DIM = 32 #32 in paper
+HIDDEN_DIM = 256 #256 in paper
+TARGET_SIZE = 2 #since 0 or 1
