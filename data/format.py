@@ -4,13 +4,14 @@ import torch
 functions used for converting path data into format for KPRN model
 '''
 
-def format_paths(training_data, e_to_ix, t_to_ix, r_to_ix, padding_token):
+def format_train_paths(training_data, e_to_ix, t_to_ix, r_to_ix, padding_token):
     '''
-    Pads paths up to max path length, then converts data to triplets of
-    (padded path, tag, path length) replacing path items with ids
+    Pads paths up to max path length, converting each path into tuple
+    of (padded_path, path length). Then constructs list of these tuples each in
+    a tuple with the interaction tag.
     '''
 
-    max_len = find_max_length(training_data)
+    max_len = find_max_train_length(training_data)
     formatted_data = []
 
     for paths, tag in training_data:
@@ -23,10 +24,25 @@ def format_paths(training_data, e_to_ix, t_to_ix, r_to_ix, padding_token):
 
     return formatted_data
 
-
-def find_max_length(data_tuples):
+def format_test_paths(paths, e_to_ix, t_to_ix, r_to_ix, padding_token):
     '''
-    Finds max path length in a list of (path, target) tuples
+    Returns list of paths padded up to max length, and list of path lengths
+    '''
+
+    max_len = max(len(x) for x in paths)
+    padded_paths = []
+    lengths = []
+
+    for path in paths:
+        lengths.append(len(path))
+        padded_paths.append(pad_path(path, e_to_ix, t_to_ix, r_to_ix, max_len, padding_token))
+
+    return padded_paths,lengths
+
+
+def find_max_train_length(data_tuples):
+    '''
+    Finds max path length in a list of (interaction, target) tuples
     '''
     max_len = 0
     for (paths, _) in data_tuples:
@@ -35,9 +51,9 @@ def find_max_length(data_tuples):
     return max_len
 
 
+
 def pad_path(seq, e_to_ix, t_to_ix, r_to_ix, max_len, padding_token):
     '''
-    Constructs a tensor of item, type, and relation ids from a path
     Pads paths up to max path length
     '''
     relation_padding =  r_to_ix[padding_token]
