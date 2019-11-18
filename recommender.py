@@ -95,6 +95,24 @@ def load_sample_data2(song_person, person_song, song_user, user_song):
     return interactions
 
 
+def load_train_data(interaction_pairs, song_person, person_song, song_user, user_song, inter_value):
+    '''
+    Constructs sample data from path algorithm
+    '''    
+        
+    i = 0
+    interactions = []
+    for [user,song] in tqdm(interaction_pairs[:10]):
+        if i == 10:
+            break
+        i += 1
+        print(i)
+        paths = build_paths(user, song, song_person, person_song, song_user, user_song)
+        interactions.append((paths, inter_value))
+
+    return interactions
+
+
 def load_string_to_ix_dicts():
     '''
     Loads the dictionaries mapping entity, relation, and type to id
@@ -140,10 +158,24 @@ def main():
     model_path = "model/model.pt"
 
     t_to_ix, r_to_ix, e_to_ix = load_string_to_ix_dicts()
+    #TODO: convert user_song test to ids
     song_person, person_song, song_user, user_song = load_rel_ix_dicts()
 
     model = KPRN(consts.ENTITY_EMB_DIM, consts.TYPE_EMB_DIM, consts.REL_EMB_DIM, consts.HIDDEN_DIM, \
                  len(e_to_ix), len(t_to_ix), len(r_to_ix), consts.TARGET_SIZE)
+    
+    with open('data/song_data_vocab/user_song_tuple_train_pos_ix.txt', 'rb') as handle:
+        pos_interactions_train = pickle.load(handle)   
+    
+    with open('data/song_data_vocab/user_song_tuple_train_neg_ix.txt', 'rb') as handle:
+        neg_interactions_train = pickle.load(handle)
+    
+    with open('data/song_data_vocab/user_song_train_ix.dict', 'rb') as handle:
+        user_song_train = pickle.load(handle)
+        
+    with open('data/song_data_vocab/song_user_train_ix.dict', 'rb') as handle:
+        song_user_train = pickle.load(handle)
+        
 
     #TODO: Load dense subgraph here
 
@@ -151,7 +183,8 @@ def main():
         #TODO: Load training interactions based on dense graph
 
         #sample data is a list of (path_list, target) tuples
-        training_data = load_sample_data2(song_person, person_song, song_user, user_song)
+        training_data = load_train_data(pos_interactions_train, song_person, person_song, song_user_train, user_song_train, 1)
+        training_data.extend(load_train_data(neg_interactions_train, song_person, person_song, song_user_train, user_song_train, 0))
         print(training_data)
 
         formatted_data = format_train_paths(training_data, e_to_ix, t_to_ix, r_to_ix, consts.PAD_TOKEN)
