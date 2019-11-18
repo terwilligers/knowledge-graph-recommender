@@ -6,6 +6,7 @@ import constants.consts as consts
 from model import KPRN, train, predict
 from data.format import format_test_paths, format_train_paths
 from data.path_extraction import build_paths
+from tqdm import tqdm
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -79,7 +80,8 @@ def load_sample_data2(song_person, person_song, song_user, user_song):
     i = 0
     interactions = []
     for user,songs in user_song.items():
-        for song in songs:
+        print("user is", user)
+        for song in tqdm(songs):
             if i == 10:
                 break
             i += 1
@@ -150,10 +152,10 @@ def main():
 
         #sample data is a list of (path_list, target) tuples
         training_data = load_sample_data2(song_person, person_song, song_user, user_song)
-        #print(training_data)
+        print(training_data)
 
         formatted_data = format_train_paths(training_data, e_to_ix, t_to_ix, r_to_ix, consts.PAD_TOKEN)
-        #print(formatted_data)
+        print(formatted_data)
 
         model = train(model, formatted_data, args.batch_size, args.epochs)
 
