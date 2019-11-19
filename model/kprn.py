@@ -49,10 +49,7 @@ class KPRN(nn.Module):
         #pass through linear layers
         tag_scores = self.linear2(F.relu(self.linear1(last_out[-1])))
 
-        #Paper uses relu as final activation, but for Pytorch's nllloss it seems like we need a softmax layer
-        #to convert to probability distribution?
-        #return F.relu(tag_score)
-        return F.log_softmax(tag_scores, dim=1)
+        return tag_scores
 
     def weighted_pooling(self, path_scores, gamma=1):
         '''
