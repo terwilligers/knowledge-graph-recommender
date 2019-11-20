@@ -10,6 +10,7 @@ data/song_data/train.csv
 *.dict
 *nodes.txt
 
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -117,3 +118,6 @@ venv.bak/
 
 # pycharm
 .idea/
+
+# Pytorch Model
+model/model.pt
