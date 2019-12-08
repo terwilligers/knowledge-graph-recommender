@@ -30,7 +30,7 @@ def my_collate(batch):
     return [data, target]
 
 
-def sort_train_batch(batch, indexes, lengths):
+def sort_batch(batch, indexes, lengths):
     '''
     sorts a batch of paths by path length, in decreasing order
     '''
@@ -57,7 +57,7 @@ def train(model, formatted_data, batch_size, epochs):
 
     #DataLoader used for batches
     interaction_data = InteractionData(formatted_data)
-    train_loader = DataLoader(dataset=interaction_data, collate_fn = my_collate, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(dataset=interaction_data, collate_fn = my_collate, batch_size=batch_size, shuffle=True)
 
     for epoch in range(epochs):
         for interaction_batch, targets in train_loader:
@@ -77,7 +77,7 @@ def train(model, formatted_data, batch_size, epochs):
 
 
             #sort based on path lengths, largest first, so that we can pack paths
-            s_path_batch, s_inter_ids, s_lengths = sort_train_batch(paths, inter_ids, lengths)
+            s_path_batch, s_inter_ids, s_lengths = sort_batch(paths, inter_ids, lengths)
 
             #Pytorch accumulates gradients, so we need to clear before each instance
             model.zero_grad()
@@ -109,9 +109,6 @@ def train(model, formatted_data, batch_size, epochs):
             optimizer.step()
 
             # print statistics
-            if epoch % 10 == 0:
-                print(prediction_scores)
-                print(targets)
-                print("loss is:", loss.item())
+            print("loss is:", loss.item())
 
     return model

@@ -1,8 +1,15 @@
+import sys
+from os import path
+sys.path.append(path.dirname(path.dirname(path.abspath('./constants'))))
+
 import pickle
-import collections
 import random
-import constants.consts as consts #import only works when running through recommender.py
+import constants.consts as consts
 from tqdm import tqdm
+from collections import defaultdict
+from collections import deque
+from datetime import datetime
+
 
 class PathState:
     def __init__(self, path, length, entities):
@@ -15,15 +22,91 @@ def get_random_index(nums, max_length):
     random.shuffle(index_list)
     return index_list[:nums]
 
+
+def find_paths_user_to_songs(start_user, song_person, person_song, song_user, user_song):
+    '''
+    Finds sampled paths of max depth from a user to a sampling of songs
+    '''
+    #start_time=datetime.now()
+    song_to_paths = defaultdict(list)
+
+    paths = []
+    sample_nums = 30
+
+    stack = []
+    start = PathState([[start_user, consts.USER_TYPE, consts.END_REL]], 0, {start_user})
+    stack.append(start)
+    while len(stack) > 0:
+        front = stack.pop()
+        entity, type = front.path[-1][0], front.path[-1][1]
+        if front.length > 3:
+            continue
+        if type == consts.USER_TYPE and entity in user_song:
+            song_list = user_song[entity]
+            index_list = get_random_index(sample_nums, len(song_list))
+            for index in index_list:
+                song = song_list[index]
+                if song not in front.entities:
+                    new_path = front.path[:]
+                    new_path[-1][2] = consts.USER_SONG_REL
+                    new_path.append([song, consts.SONG_TYPE, consts.END_REL])
+                    new_state = PathState(new_path, front.length + 1, front.entities|{song})
+                    stack.append(new_state)
+
+        elif type == consts.SONG_TYPE:
+            #add path to song to user_path dicts, need paths of length > 1
+            if front.length > 1:
+                song_to_paths[entity].append(front.path)
+
+            #find neighbors
+            if entity in song_user:
+                user_list = song_user[entity]
+                index_list = get_random_index(sample_nums, len(user_list))
+                for index in index_list:
+                    user = user_list[index]
+                    if user not in front.entities:
+                        new_path = front.path[:]
+                        new_path[-1][2] = consts.SONG_USER_REL
+                        new_path.append([user, consts.USER_TYPE, consts.END_REL])
+                        new_state = PathState(new_path, front.length + 1, front.entities|{user})
+                        stack.append(new_state)
+            if entity in song_person:
+                person_list = song_person[entity]
+                index_list = get_random_index(sample_nums, len(person_list))
+                for index in index_list:
+                    person = person_list[index]
+                    if person not in front.entities:
+                        new_path = front.path[:]
+                        new_path[-1][2] = consts.SONG_PERSON_REL
+                        new_path.append([person, consts.PERSON_TYPE, consts.END_REL])
+                        new_state = PathState(new_path, front.length + 1, front.entities|{person})
+                        stack.append(new_state)
+
+        elif type == consts.PERSON_TYPE and entity in person_song:
+            song_list = person_song[entity]
+            index_list = get_random_index(sample_nums, len(song_list))
+            for index in index_list:
+                song = song_list[index]
+                if song not in front.entities:
+                    new_path = front.path[:]
+                    new_path[-1][2] = consts.PERSON_SONG_REL
+                    new_path.append([song, consts.SONG_TYPE, consts.END_REL])
+                    new_state = PathState(new_path, front.length + 1, front.entities|{song})
+                    stack.append(new_state)
+
+    #print("one user took", datetime.now()-start_time)
+
+    return song_to_paths
+
 def build_paths(start_user, end_song, song_person, person_song, song_user, user_song):
     '''
     Return a list of paths from a specified user to a specified song of length <= 6
     '''
 
     paths = []
-    sample_nums = 30
+    sample_nums = 20
 
-    queue = collections.deque()
+    queue = deque()
     start = PathState([[start_user, consts.USER_TYPE, consts.END_REL]], 0, {start_user})
     queue.appendleft(start)
     while len(queue) > 0:
@@ -86,19 +169,20 @@ def build_paths(start_user, end_song, song_person, person_song, song_user, user_
     return paths
 
 def main():
-    with open("data/song_data_vocab/song_person_ix.dict", 'rb') as handle:
+    with open("song_data_vocab/song_person_ix.dict", 'rb') as handle:
         song_person = pickle.load(handle)
 
-    with open("data/song_data_vocab/person_song_ix.dict", 'rb') as handle:
+    with open("song_data_vocab/person_song_ix.dict", 'rb') as handle:
         person_song = pickle.load(handle)
 
-    with open("data/song_data_vocab/song_user_ix.dict", 'rb') as handle:
+    with open("song_data_vocab/song_user_ix.dict", 'rb') as handle:
         song_user = pickle.load(handle)
 
-    with open("data/song_data_vocab/user_song_ix.dict", 'rb') as handle:
+    with open("song_data_vocab/user_song_ix.dict", 'rb') as handle:
         user_song = pickle.load(handle)
 
-    print(build_paths(3142, '1302', song_person, person_song, song_user, user_song))
+    #print(build_paths(225331, 1302, song_person, person_song, song_user, user_song))
+    print(find_paths_user_to_songs(225331, song_person, person_song, song_user, user_song))
 
 
 if __name__ == "__main__":
