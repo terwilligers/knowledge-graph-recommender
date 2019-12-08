@@ -1,12 +1,21 @@
-
+import math
 
 def hit_at_k(ranked_tuples, k):
     '''
-    Calculates the number of positive hits in the top k recommended items
+    Checks if the pos interaction occured in the top k scores
     '''
-    hits = 0
     for (score, tag) in ranked_tuples[:k]:
         if tag == 1:
-            hits += 1
+            return 1
+    return 0
 
-    return hits / k
+def ndcg_at_k(ranked_tuples, k):
+    '''
+    If the pos interaction occured in the top k scores,
+    return the ndcg relative rank value
+    Taken from papers implementation
+    '''
+    for i,(score, tag) in enumerate(ranked_tuples):
+        if tag == 1:
+            return math.log(2) / math.log(i + 2)
+    return 0
