@@ -1,12 +1,13 @@
 import pickle
 import torch
 import argparse
+import random
 
 import constants.consts as consts
 from model import KPRN, train, predict
 from data.format import format_paths
 from data.path_extraction import build_paths, find_paths_user_to_songs
-from eval import hit_at_k
+from eval import hit_at_k, ndcg_at_k
 
 from tqdm import tqdm
 from statistics import mean
@@ -85,20 +86,55 @@ def load_train_data(user_to_paths, interaction_pairs, song_person, person_song, 
 
     return interactions
 
-def load_test_data(user_to_paths, user_to_interactions, interaction_pairs, song_person, person_song, song_user, user_song, inter_value, limit=10):
+def load_test_data(pos_interaction_pairs, neg_interaction_pairs, \
+                  song_person, person_song, song_user, user_song, limit=10):
     '''
     Constructs paths for test data, these are stored by user since we evalute for a single user
+    Eventually just find neg interaction pairs here, don't input (so we actually find 100)
+    Limit is how many pos interactions to take
     '''
+    #key will be (user, item) pos pair tuple
+    #value will contain tuples of (paths, target) for pos pair and sampled neg pairs
+    pos_pair_to_interactions = defaultdict(list)
+    user_to_paths = defaultdict(list)
 
-    for [user,song] in tqdm(interaction_pairs[:limit]):
-        if user in user_to_paths:
-            paths = user_to_paths[user][song]
-        else:
+    #for now convert neg interaction pairs list to dictionary, eventually sample from paths
+    #each user maps to lists each with 100 neg songs
+    user_to_neg_inters = defaultdict(list)
+    count = 1
+    for [user,song] in neg_interaction_pairs:
+        if user not in user_to_neg_inters:
+            user_to_neg_inters[user] = [[]]
+        if count % 100 == 0:
+            user_to_neg_inters[user].append([])
+            if count == limit * 100:
+                break
+        user_to_neg_inters[user][-1].append(song)
+        count += 1
+
+    user_to_cur_index = defaultdict(lambda:0)
+
+    for [user,pos_song] in tqdm(pos_interaction_pairs[:limit]):
+        interactions = []
+        #find paths if haven't yet
+        if user not in user_to_paths:
             user_to_songs = find_paths_user_to_songs(user, song_person, person_song, song_user, user_song)
             user_to_paths[user] = user_to_songs
-            paths = user_to_songs[song]
-        if len(paths) > 0:
-            user_to_interactions[user].append((paths, inter_value))
+        #add positive interaction
+        pos_paths = user_to_paths[user][pos_song]
+        if len(pos_paths) > 0:
+            interactions.append((pos_paths, 1))
+        #add 100 negative interactions
+        neg_songs = user_to_neg_inters[user][user_to_cur_index[user]]
+        user_to_cur_index[user] += 1
+        for neg_song in neg_songs:
+            neg_paths = user_to_paths[user][neg_song]
+            if len(neg_paths) > 0:
+                interactions.append((neg_paths, 0))
+
+        pos_pair_to_interactions[(user, pos_song)].append(interactions)
+
+    return pos_pair_to_interactions
 
 
 def load_string_to_ix_dicts():
@@ -199,10 +235,11 @@ def main():
         model.eval()
 
         if not args.find_paths:
-            with open('data/path_data/user_to_interactions.dict', 'rb') as handle:
-                user_to_interactions = pickle.load(handle)
+            with open('data/path_data/pos_pair_to_interactions.dict', 'rb') as handle:
+                pos_pair_to_interactions = pickle.load(handle)
 
         else:
+            print("Loading data")
             with open('data/song_data_vocab/user_song_tuple_test_pos_ix.txt', 'rb') as handle:
                 pos_interactions_test = pickle.load(handle)
 
@@ -216,32 +253,37 @@ def main():
                 song_user_test = pickle.load(handle)
 
             user_to_paths = defaultdict(list)
-            user_to_interactions = defaultdict(list)
-            load_test_data(user_to_paths, user_to_interactions, pos_interactions_test,  \
-                                        song_person, person_song, song_user_test, user_song_test, 1, limit=5000)
-            load_test_data(user_to_paths, user_to_interactions, neg_interactions_test, song_person, \
-                                        person_song, song_user_test, user_song_test, 0, limit=500000)
+            print("Finding paths")
+            pos_pair_to_interactions  = load_test_data(pos_interactions_test, neg_interactions_test, \
+                                            song_person, person_song, song_user_test, user_song_test, limit=2)
 
-            with open('data/path_data/user_to_interactions.dict', 'wb') as handle:
-                pickle.dump(user_to_interactions, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            with open('data/path_data/pos_pair_to_interactions.dict', 'wb') as handle:
+                pickle.dump(pos_pair_to_interactions, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         #predict scores using model
         hit_at_k_scores = []
-        for user, interaction_data in user_to_interactions.items():
-            formatted_test_data = format_paths(interaction_data, e_to_ix, t_to_ix, r_to_ix, consts.PAD_TOKEN)
+        ndcg_at_k_scores = []
+        for pair,interactions_list in pos_pair_to_interactions.items():
+            for interactions in interactions_list:
+                print("# of interactions is:", len(interactions))
+                formatted_test_data = format_paths(interactions, e_to_ix, t_to_ix, r_to_ix, consts.PAD_TOKEN)
 
-            prediction_scores = predict(model, formatted_test_data, args.batch_size)
-            target_scores = [x[1] for x in formatted_test_data]
+                prediction_scores = predict(model, formatted_test_data, args.batch_size)
+                target_scores = [x[1] for x in formatted_test_data]
 
-            #merge prediction scores and target scores into tuples, and rank
-            merged = list(zip(prediction_scores, target_scores))
-            s_merged = sorted(merged, key=lambda x: abs(x[0]))
-            print(s_merged[:args.k])
+                #merge prediction scores and target scores into tuples, and rank
+                merged = list(zip(prediction_scores, target_scores))
+                random.shuffle(merged)
+                s_merged = sorted(merged, key=lambda x: x[0], reverse=True)
+                print(s_merged[:args.k])
 
-            hit_at_k_scores.append(hit_at_k(s_merged, args.k))
+                hit_at_k_scores.append(hit_at_k(s_merged, args.k))
+                ndcg_at_k_scores.append(ndcg_at_k(s_merged, args.k))
+
 
         print()
         print("Average hit@K scores across users for k={} is {}".format(args.k, mean(hit_at_k_scores)))
+        print("Average ndcg@K scores across users for k={} is {}".format(args.k, mean(ndcg_at_k_scores)))
 
 
 
