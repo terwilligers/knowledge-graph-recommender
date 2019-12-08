@@ -101,7 +101,7 @@ def train(model, formatted_data, batch_size, epochs):
                 else:
                     pooled_scores = torch.cat((pooled_scores, pooled_score.unsqueeze(0)), dim=0)
 
-            prediction_scores = F.log_softmax(pooled_scores, dim=1)
+            prediction_scores = F.softmax(pooled_scores, dim=1)
 
             #Compute the loss, gradients, and update the parameters by calling .step()
             loss = loss_function(prediction_scores, targets)

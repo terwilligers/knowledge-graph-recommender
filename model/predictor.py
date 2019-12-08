@@ -72,7 +72,7 @@ def predict(model, formatted_data, batch_size):
                 else:
                     pooled_scores = torch.cat((pooled_scores, pooled_score.unsqueeze(0)), dim=0)
 
-            prediction_scores.extend(F.log_softmax(pooled_scores, dim=1))
+            prediction_scores.extend(F.softmax(pooled_scores, dim=1))
 
     #just want positive scores currently
     pos_scores = []
