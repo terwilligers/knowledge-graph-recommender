@@ -8,6 +8,8 @@ import constants.consts as consts
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from model import KPRN
+from tqdm import tqdm
+from statistics import mean
 
 class InteractionData(Dataset):
     def __init__(self, formatted_data):
@@ -49,7 +51,7 @@ def train(model, formatted_data, batch_size, epochs):
 
     loss_function = nn.NLLLoss() #negative log likelihood loss
     #loss_function = nn.CrossEntropyLoss() #This seems to work with relu activation but nllloss does not
-    #this is because crossEntropyLoss actually automatically adds the softmax layer to normalize results into p-distribution
+    #this is because crossEntropyLoss actually automatically adds the log_softmax layer to normalize results into p-distribution
 
     # l2 regularization is tuned from {10−5 , 10−4 , 10−3 , 10−2 }, I think this is weight decay
     # Learning rate is found from {0.001, 0.002, 0.01, 0.02} with grid search
@@ -60,7 +62,8 @@ def train(model, formatted_data, batch_size, epochs):
     train_loader = DataLoader(dataset=interaction_data, collate_fn = my_collate, batch_size=batch_size, shuffle=True)
 
     for epoch in range(epochs):
-        for interaction_batch, targets in train_loader:
+        losses = []
+        for interaction_batch, targets in tqdm(train_loader):
             #construct tensor of all paths in batch, tensor of all lengths, and tensor of interaction id
             paths = []
             lengths = []
@@ -101,14 +104,17 @@ def train(model, formatted_data, batch_size, epochs):
                 else:
                     pooled_scores = torch.cat((pooled_scores, pooled_score.unsqueeze(0)), dim=0)
 
-            prediction_scores = F.softmax(pooled_scores, dim=1)
+            prediction_scores = F.log_softmax(pooled_scores, dim=1)
 
             #Compute the loss, gradients, and update the parameters by calling .step()
             loss = loss_function(prediction_scores, targets)
             loss.backward()
             optimizer.step()
 
-            # print statistics
-            print("loss is:", loss.item())
+            losses.append(loss.item())
+
+
+        print("Epoch is:", epoch)
+        print("loss is:", mean(losses))
 
     return model
