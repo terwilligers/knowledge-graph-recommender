@@ -6,7 +6,7 @@ import random
 import constants.consts as consts
 from model import KPRN, train, predict
 from data.format import format_paths
-from data.path_extraction import build_paths, find_paths_user_to_songs
+from data.path_extraction import find_paths_user_to_songs
 from eval import hit_at_k, ndcg_at_k
 
 from tqdm import tqdm
@@ -39,12 +39,19 @@ def parse_args():
                         type=int,
                         default=256,
                         help='batch_size')
-    parser.add_argument('-k',
-                        type=int,
-                        default=15,
-                        help='When evaluating consider to k')
 
     return parser.parse_args()
+
+# def load_train_data_new(pos_interaction_pairs, song_person, person_song, user_song_all, \
+#               song_user_train, user_song_train, neg_samples, limit=10):
+#     '''
+#     Maybe will be used for using length 3 paths to find length 5 paths
+#     '''
+#      #convert neg interaction pairs list to dictionary
+#      # user_to_pos_inters = defaultdict(list)
+#      # for [user,song] in pos_interaction_pairs[:limit]:
+#      #     user_to_pos_inters[user].append(song)
+#      #
 
 
 def load_train_data(pos_interaction_pairs, song_person, person_song, user_song_all, \
@@ -58,15 +65,25 @@ def load_train_data(pos_interaction_pairs, song_person, person_song, user_song_a
     #current index in negative list for adding negative interactions
     user_to_cur_index = defaultdict(lambda:0)
 
+    pos_paths_not_found = 0
     for [user,pos_song] in tqdm(pos_interaction_pairs[:limit]):
         if user not in user_to_paths:
             #find paths
-            user_to_songs = find_paths_user_to_songs(user, song_person, person_song, song_user_train, user_song_train)
-            user_to_paths[user] = user_to_songs
+            song_to_paths = find_paths_user_to_songs(user, song_person, person_song, \
+                                                          song_user_train, user_song_train, 3, 50)
+
+            #problem with this is we flood the number of paths, meaning chosen neg paths will usually just have 1 path now
+            song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song, \
+                                                         song_user_train, user_song_train, 5, 4)
+
+            for song in song_to_paths_len5.keys():
+                song_to_paths[song].extend(song_to_paths_len5[song])
+
+            user_to_paths[user] = song_to_paths
 
             #select negative paths
             all_pos_songs = set(user_song_all[user])
-            songs_with_paths = set(user_to_songs.keys())
+            songs_with_paths = set(song_to_paths.keys())
             neg_songs_with_paths = list(songs_with_paths.difference(all_pos_songs))
             random.shuffle(neg_songs_with_paths)
             user_to_neg_songs_with_paths[user] = neg_songs_with_paths
@@ -75,17 +92,23 @@ def load_train_data(pos_interaction_pairs, song_person, person_song, user_song_a
         pos_paths = user_to_paths[user][pos_song]
         if len(pos_paths) > 0:
             interactions.append((pos_paths, 1))
+        else:
+            pos_paths_not_found += 1
 
         #add negative interactions that have paths (4 for train)
         for i in range(neg_samples):
             index = user_to_cur_index[user]
             #check if not enough neg paths
             if index >= len(user_to_neg_songs_with_paths[user]):
+                print("not enough neg paths")
                 break
             neg_song = user_to_neg_songs_with_paths[user][index]
-            neg_paths = user_to_songs[neg_song]
+            neg_paths = user_to_paths[user][neg_song]
             interactions.append((neg_paths, 0))
             user_to_cur_index[user] += 1
+
+    print("number of pos paths attempted to find:", limit)
+    print("number of pos paths not found:", pos_paths_not_found)
 
     return interactions
 
@@ -109,12 +132,22 @@ def load_test_data(pos_interaction_pairs, song_person, person_song, user_song_al
         interactions = []
         if user not in user_to_paths:
             #find paths
-            user_to_songs = find_paths_user_to_songs(user, song_person, person_song, song_user_test, user_song_test)
-            user_to_paths[user] = user_to_songs
+            song_to_paths = find_paths_user_to_songs(user, song_person, person_song, \
+                                                          song_user_test, user_song_test, 3, 50)
+
+            #problem with this is we flood the number of paths, meaning chosen neg paths will usually just have 1 path now
+            song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song, \
+                                                         song_user_test, user_song_test, 5, 4)
+            print(pos_song in song_to_paths_len5)
+
+            for song in song_to_paths_len5.keys():
+                song_to_paths[song].extend(song_to_paths_len5[song])
+
+            user_to_paths[user] = song_to_paths
 
             #select negative paths
             all_pos_songs = set(user_song_all[user])
-            songs_with_paths = set(user_to_songs.keys())
+            songs_with_paths = set(song_to_paths.keys())
             neg_songs_with_paths = list(songs_with_paths.difference(all_pos_songs))
             random.shuffle(neg_songs_with_paths)
             user_to_neg_songs_with_paths[user] = neg_songs_with_paths
@@ -129,11 +162,12 @@ def load_test_data(pos_interaction_pairs, song_person, person_song, user_song_al
         #add negative interactions that have paths (4 for train)
         for i in range(neg_samples):
             index = user_to_cur_index[user]
+            #check if not enough neg paths
             if index >= len(user_to_neg_songs_with_paths[user]):
-                print("not enough neg paths found")
+                print("not enough neg paths")
                 break
             neg_song = user_to_neg_songs_with_paths[user][index]
-            neg_paths = user_to_songs[neg_song]
+            neg_paths = user_to_paths[user][neg_song]
             interactions.append((neg_paths, 0))
             user_to_cur_index[user] += 1
 
@@ -190,7 +224,6 @@ def main():
     model_path = "model/model.pt"
 
     t_to_ix, r_to_ix, e_to_ix = load_string_to_ix_dicts()
-    #TODO: convert user_song test to ids
     song_person, person_song, song_user, user_song = load_rel_ix_dicts()
 
     model = KPRN(consts.ENTITY_EMB_DIM, consts.TYPE_EMB_DIM, consts.REL_EMB_DIM, consts.HIDDEN_DIM, \
@@ -214,9 +247,9 @@ def main():
                 song_user_train = pickle.load(handle)
 
             neg_samples = 4
-            #have ran with limit=100000
+            print("Finding paths")
             training_data = load_train_data(pos_interactions_train, song_person, person_song, \
-                                            user_song, song_user_train, user_song_train, neg_samples, limit=10000)
+                                            user_song, song_user_train, user_song_train, neg_samples, limit=100000)
 
             formatted_train_data = format_paths(training_data, e_to_ix, t_to_ix, r_to_ix, consts.PAD_TOKEN)
 
@@ -230,7 +263,6 @@ def main():
         torch.save(model.state_dict(), model_path)
 
     if args.eval:
-        #TODO: need to ensure we find paths for all negative interactions, thus we should sample after path finding
         model.load_state_dict(torch.load(model_path))
         model.eval()
 
@@ -258,8 +290,9 @@ def main():
                 pickle.dump(pos_pair_to_interactions, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         #predict scores using model for each combination of one pos and 100 neg interactions
-        hit_at_k_scores = []
-        ndcg_at_k_scores = []
+        hit_at_k_scores = defaultdict(list)
+        ndcg_at_k_scores = defaultdict(list)
+        max_k = 15
         for pair,interactions in tqdm(pos_pair_to_interactions.items()):
             formatted_test_data = format_paths(interactions, e_to_ix, t_to_ix, r_to_ix, consts.PAD_TOKEN)
 
@@ -271,13 +304,17 @@ def main():
             random.shuffle(merged)
             s_merged = sorted(merged, key=lambda x: x[0], reverse=True)
 
-            hit_at_k_scores.append(hit_at_k(s_merged, args.k))
-            ndcg_at_k_scores.append(ndcg_at_k(s_merged, args.k))
+            for k in range(1,max_k+1):
+                hit_at_k_scores[k].append(hit_at_k(s_merged, k))
+                ndcg_at_k_scores[k].append(ndcg_at_k(s_merged, k))
 
 
-        print()
-        print("Average hit@K scores across users for k={} is {}".format(args.k, mean(hit_at_k_scores)))
-        print("Average ndcg@K scores across users for k={} is {}".format(args.k, mean(ndcg_at_k_scores)))
+        for k in hit_at_k_scores.keys():
+            hit_at_ks = hit_at_k_scores[k]
+            ndcg_at_ks = ndcg_at_k_scores[k]
+            print()
+            print("Average hit@K for k={0} is {1:.2f}".format(k, mean(hit_at_ks)))
+            print("Average ndcg@K for k={0} is {1:.2f}".format(k, mean(ndcg_at_ks)))
 
 
 
