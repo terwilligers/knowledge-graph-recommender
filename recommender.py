@@ -27,13 +27,29 @@ def parse_args():
                         default=False,
                         action='store_true',
                         help='whether to find paths (otherwise load from disk)')
-    parser.add_argument('--model_dir',
+    parser.add_argument('--model',
                         type=str,
-                        default='/model',
-                        help='directory to save the model to')
+                        default='model.pt',
+                        help='name to save or load model from')
+    parser.add_argument('--train_path_file',
+                        type=str,
+                        default='train_interactions.txt',
+                        help='file name to store/load train paths')
+    parser.add_argument('--test_path_file',
+                        type=str,
+                        default='pos_pair_to_interactions.dict',
+                        help='file name to store/load test path dictionary')
+    parser.add_argument('--train_inter_limit',
+                        type=int,
+                        default=10000,
+                        help='max number of pos train interactions to find paths for')
+    parser.add_argument('--test_inter_limit',
+                        type=int,
+                        default=1000,
+                        help='max number of pos test interactions to find paths for')
     parser.add_argument('-e','--epochs',
                         type=int,
-                        default=10,
+                        default=5,
                         help='number of epochs for training model')
     parser.add_argument('-b', '--batch_size',
                         type=int,
@@ -41,17 +57,6 @@ def parse_args():
                         help='batch_size')
 
     return parser.parse_args()
-
-# def load_train_data_new(pos_interaction_pairs, song_person, person_song, user_song_all, \
-#               song_user_train, user_song_train, neg_samples, limit=10):
-#     '''
-#     Maybe will be used for using length 3 paths to find length 5 paths
-#     '''
-#      #convert neg interaction pairs list to dictionary
-#      # user_to_pos_inters = defaultdict(list)
-#      # for [user,song] in pos_interaction_pairs[:limit]:
-#      #     user_to_pos_inters[user].append(song)
-#      #
 
 
 def load_train_data(pos_interaction_pairs, song_person, person_song, user_song_all, \
@@ -72,9 +77,8 @@ def load_train_data(pos_interaction_pairs, song_person, person_song, user_song_a
             song_to_paths = find_paths_user_to_songs(user, song_person, person_song, \
                                                           song_user_train, user_song_train, 3, 50)
 
-            #problem with this is we flood the number of paths, meaning chosen neg paths will usually just have 1 path now
             song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song, \
-                                                         song_user_train, user_song_train, 5, 4)
+                                                         song_user_train, user_song_train, 5, 6)
 
             for song in song_to_paths_len5.keys():
                 song_to_paths[song].extend(song_to_paths_len5[song])
@@ -133,12 +137,10 @@ def load_test_data(pos_interaction_pairs, song_person, person_song, user_song_al
         if user not in user_to_paths:
             #find paths
             song_to_paths = find_paths_user_to_songs(user, song_person, person_song, \
-                                                          song_user_test, user_song_test, 3, 50)
+                                                          song_user_test, user_song_test, 3, 150)
 
-            #problem with this is we flood the number of paths, meaning chosen neg paths will usually just have 1 path now
             song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song, \
-                                                         song_user_test, user_song_test, 5, 4)
-            print(pos_song in song_to_paths_len5)
+                                                         song_user_test, user_song_test, 5, 8)
 
             for song in song_to_paths_len5.keys():
                 song_to_paths[song].extend(song_to_paths_len5[song])
@@ -219,9 +221,9 @@ def main():
     Main function for our graph recommendation project,
     will eventually have command line args for different items
     '''
-
+    print(["Main Loaded"])
     args = parse_args()
-    model_path = "model/model.pt"
+    model_path = "model/" + args.model
 
     t_to_ix, r_to_ix, e_to_ix = load_string_to_ix_dicts()
     song_person, person_song, song_user, user_song = load_rel_ix_dicts()
@@ -233,7 +235,7 @@ def main():
     if args.train:
         #either load interactions from disk, or run path extraction algorithm
         if not args.find_paths:
-            with open('data/path_data/train_interactions.txt', 'rb') as handle:
+            with open('data/path_data/' + args.train_path_file, 'rb') as handle:
                 formatted_train_data = pickle.load(handle)
 
         else:
@@ -246,14 +248,14 @@ def main():
             with open('data/song_data_vocab/song_user_train_ix.dict', 'rb') as handle:
                 song_user_train = pickle.load(handle)
 
-            neg_samples = 4
             print("Finding paths")
             training_data = load_train_data(pos_interactions_train, song_person, person_song, \
-                                            user_song, song_user_train, user_song_train, neg_samples, limit=100000)
+                                            user_song, song_user_train, user_song_train, consts.NEG_SAMPLES_TRAIN, \
+                                            limit=args.train_inter_limit)
 
             formatted_train_data = format_paths(training_data, e_to_ix, t_to_ix, r_to_ix, consts.PAD_TOKEN)
 
-            with open('data/path_data/train_interactions.txt', 'wb') as handle:
+            with open('data/path_data/' + args.train_path_file, 'wb') as handle:
                 pickle.dump(formatted_train_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         model = train(model, formatted_train_data, args.batch_size, args.epochs)
@@ -263,11 +265,12 @@ def main():
         torch.save(model.state_dict(), model_path)
 
     if args.eval:
+        print(["Eval loaded"])
         model.load_state_dict(torch.load(model_path))
         model.eval()
 
         if not args.find_paths:
-            with open('data/path_data/pos_pair_to_interactions.dict', 'rb') as handle:
+            with open('data/path_data/' + args.test_path_file, 'rb') as handle:
                 pos_pair_to_interactions = pickle.load(handle)
 
         else:
@@ -282,11 +285,10 @@ def main():
                 song_user_test = pickle.load(handle)
 
             print("Finding paths")
-            neg_samples = 100
             pos_pair_to_interactions  = load_test_data(pos_interactions_test, song_person, person_song, \
-                                                        user_song, song_user_test, user_song_test, neg_samples, limit=100)
+                                                        user_song, song_user_test, user_song_test, consts.NEG_SAMPLES_TEST, limit=args.test_inter_limit)
 
-            with open('data/path_data/pos_pair_to_interactions.dict', 'wb') as handle:
+            with open('data/path_data/' + args.test_path_file, 'wb') as handle:
                 pickle.dump(pos_pair_to_interactions, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         #predict scores using model for each combination of one pos and 100 neg interactions
@@ -313,8 +315,8 @@ def main():
             hit_at_ks = hit_at_k_scores[k]
             ndcg_at_ks = ndcg_at_k_scores[k]
             print()
-            print("Average hit@K for k={0} is {1:.2f}".format(k, mean(hit_at_ks)))
-            print("Average ndcg@K for k={0} is {1:.2f}".format(k, mean(ndcg_at_ks)))
+            print(["Average hit@K for k={0} is {1:.2f}".format(k, mean(hit_at_ks))])
+            print(["Average ndcg@K for k={0} is {1:.2f}".format(k, mean(ndcg_at_ks))])
 
 
 
