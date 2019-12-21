@@ -269,6 +269,10 @@ def main():
         model.load_state_dict(torch.load(model_path))
         model.eval()
 
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        print("Device is", device)
+        model = model.to(device)
+
         if not args.find_paths:
             with open('data/path_data/' + args.test_path_file, 'rb') as handle:
                 pos_pair_to_interactions = pickle.load(handle)
@@ -298,7 +302,7 @@ def main():
         for pair,interactions in tqdm(pos_pair_to_interactions.items()):
             formatted_test_data = format_paths(interactions, e_to_ix, t_to_ix, r_to_ix, consts.PAD_TOKEN)
 
-            prediction_scores = predict(model, formatted_test_data, args.batch_size)
+            prediction_scores = predict(model, formatted_test_data, args.batch_size, device)
             target_scores = [x[1] for x in formatted_test_data]
 
             #merge prediction scores and target scores into tuples, and rank

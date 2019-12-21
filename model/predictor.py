@@ -21,7 +21,7 @@ def convert_to_etr(e_to_ix, t_to_ix, r_to_ix, path, length):
         new_path.append([ix_to_e[step[0].item()], ix_to_t[step[1].item()], ix_to_r[step[2].item()]])
     return new_path
 
-def predict(model, formatted_data, batch_size):
+def predict(model, formatted_data, batch_size, device):
     '''
     -outputs predicted scores for the input test data
     -formatted_data is a list of path lists, each of which consists of tuples of
@@ -54,7 +54,7 @@ def predict(model, formatted_data, batch_size):
             #sort based on path lengths, largest first, so that we can pack paths
             s_path_batch, s_inter_ids, s_lengths = sort_batch(paths, inter_ids, lengths)
 
-            tag_scores = model(s_path_batch, s_lengths)
+            tag_scores = model(s_path_batch.to(device), s_lengths.to(device))
 
             #Get weighted pooling of scores over interaction id groups
             start = True

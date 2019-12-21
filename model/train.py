@@ -48,6 +48,10 @@ def train(model, formatted_data, batch_size, epochs):
     -formatted_data is a list of path lists, each of which consists of tuples of
     (path, tag, path_length), where the path is padded to ensure same overall length
     '''
+    print("Starting model training")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print("Device is", device)
+    model = model.to(device)
 
     loss_function = nn.NLLLoss() #negative log likelihood loss
     #loss_function = nn.CrossEntropyLoss() #This seems to work with relu activation but nllloss does not
@@ -86,7 +90,7 @@ def train(model, formatted_data, batch_size, epochs):
             model.zero_grad()
 
             #Run the forward pass.
-            tag_scores = model(s_path_batch, s_lengths)
+            tag_scores = model(s_path_batch.to(device), s_lengths.to(device))
 
             #Get weighted pooling of scores over interaction id groups
             start = True
@@ -107,7 +111,7 @@ def train(model, formatted_data, batch_size, epochs):
             prediction_scores = F.log_softmax(pooled_scores, dim=1)
 
             #Compute the loss, gradients, and update the parameters by calling .step()
-            loss = loss_function(prediction_scores, targets)
+            loss = loss_function(prediction_scores.to(device), targets.to(device))
             loss.backward()
             optimizer.step()
 
