@@ -2,6 +2,7 @@ import pickle
 import torch
 import argparse
 import random
+import mmap
 
 import constants.consts as consts
 from model import KPRN, train, predict
@@ -37,7 +38,7 @@ def parse_args():
                         help='file name to store/load train paths')
     parser.add_argument('--test_path_file',
                         type=str,
-                        default='pos_pair_to_interactions.dict',
+                        default='test_interactions.txt',
                         help='file name to store/load test path dictionary')
     parser.add_argument('--train_inter_limit',
                         type=int,
@@ -60,13 +61,18 @@ def parse_args():
 
 
 def load_train_data(pos_interaction_pairs, song_person, person_song, user_song_all, \
-              song_user_train, user_song_train, neg_samples, limit=10):
+              song_user_train, user_song_train, neg_samples, e_to_ix, \
+              t_to_ix, r_to_ix, train_path_file, limit=10):
     '''
-    Constructs paths for training data
+    Constructs paths for training data, writes each formatted interaction to file
+    as we find them
     '''
+
+    #clear file if it was already written to
+    open('data/path_data/' + train_path_file, 'w').close()
+
     user_to_paths = {}
     user_to_neg_songs_with_paths = {}
-    interactions = []
     #current index in negative list for adding negative interactions
     user_to_cur_index = defaultdict(lambda:0)
 
@@ -95,7 +101,9 @@ def load_train_data(pos_interaction_pairs, song_person, person_song, user_song_a
         #add paths for positive interaction
         pos_paths = user_to_paths[user][pos_song]
         if len(pos_paths) > 0:
-            interactions.append((pos_paths, 1))
+            interaction = (format_paths(pos_paths, e_to_ix, t_to_ix, r_to_ix), 1)
+            with open('data/path_data/' + train_path_file, 'a') as path_file:
+                path_file.write(repr(interaction) + "\n")
         else:
             pos_paths_not_found += 1
 
@@ -108,23 +116,26 @@ def load_train_data(pos_interaction_pairs, song_person, person_song, user_song_a
                 break
             neg_song = user_to_neg_songs_with_paths[user][index]
             neg_paths = user_to_paths[user][neg_song]
-            interactions.append((neg_paths, 0))
+            interaction = (format_paths(neg_paths, e_to_ix, t_to_ix, r_to_ix), 0)
+            with open('data/path_data/' + train_path_file, 'a') as path_file:
+                path_file.write(repr(interaction) + "\n")
+
             user_to_cur_index[user] += 1
 
     print("number of pos paths attempted to find:", limit)
     print("number of pos paths not found:", pos_paths_not_found)
+    return
 
-    return interactions
 
 def load_test_data(pos_interaction_pairs, song_person, person_song, user_song_all, \
-              song_user_test, user_song_test, neg_samples, limit=10):
+              song_user_test, user_song_test, neg_samples, e_to_ix, \
+              t_to_ix, r_to_ix, test_path_file, limit=10):
     '''
-    Constructs paths for test data, these are stored by user/pos item pair since we evalute for
-    each pair
+    Constructs paths for test data, for each combo of a pos paths and 100 neg paths
+    we store these in a single line in the file
     '''
-    #key will be (user, item) pos pair tuple
-    #value will contain tuples of (paths, target) for pos pair and sampled neg pairs
-    pos_pair_to_interactions = {}
+    #clear file if it was already written to
+    open('data/path_data/' + test_path_file, 'w').close()
 
     user_to_paths = {}
     user_to_neg_songs_with_paths = {}
@@ -157,7 +168,7 @@ def load_test_data(pos_interaction_pairs, song_person, person_song, user_song_al
         #add paths for positive interaction
         pos_paths = user_to_paths[user][pos_song]
         if len(pos_paths) > 0:
-            interactions.append((pos_paths, 1))
+            interactions.append((format_paths(pos_paths, e_to_ix, t_to_ix, r_to_ix), 1))
         else:
             pos_paths_not_found += 1
 
@@ -170,15 +181,15 @@ def load_test_data(pos_interaction_pairs, song_person, person_song, user_song_al
                 break
             neg_song = user_to_neg_songs_with_paths[user][index]
             neg_paths = user_to_paths[user][neg_song]
-            interactions.append((neg_paths, 0))
+            interactions.append((format_paths(neg_paths, e_to_ix, t_to_ix, r_to_ix), 0))
             user_to_cur_index[user] += 1
 
-        pos_pair_to_interactions[(user, pos_song)] = interactions
+        with open('data/path_data/' + test_path_file, 'a') as path_file:
+            path_file.write(repr(interactions) + "\n")
 
     print("number of pos paths attempted to find:", limit)
     print("number of pos paths not found:", pos_paths_not_found)
-
-    return pos_pair_to_interactions
+    return
 
 
 def load_string_to_ix_dicts():
@@ -216,12 +227,21 @@ def load_rel_ix_dicts():
     return song_person, person_song, song_user, user_song
 
 
+def get_num_lines(file_path):
+    fp = open(file_path, "r+")
+    buf = mmap.mmap(fp.fileno(), 0)
+    lines = 0
+    while buf.readline():
+        lines += 1
+    return lines
+
+
 def main():
     '''
     Main function for our graph recommendation project,
     will eventually have command line args for different items
     '''
-    print(["Main Loaded"])
+    print("Main Loaded")
     args = parse_args()
     model_path = "model/" + args.model
 
@@ -233,12 +253,10 @@ def main():
 
 
     if args.train:
+        print("Training Starting")
         #either load interactions from disk, or run path extraction algorithm
-        if not args.find_paths:
-            with open('data/path_data/' + args.train_path_file, 'rb') as handle:
-                formatted_train_data = pickle.load(handle)
-
-        else:
+        if args.find_paths:
+            print("Finding paths")
             with open('data/song_data_vocab/user_song_tuple_train_pos_ix.txt', 'rb') as handle:
                 pos_interactions_train = pickle.load(handle)
 
@@ -248,24 +266,18 @@ def main():
             with open('data/song_data_vocab/song_user_train_ix.dict', 'rb') as handle:
                 song_user_train = pickle.load(handle)
 
-            print("Finding paths")
-            training_data = load_train_data(pos_interactions_train, song_person, person_song, \
-                                            user_song, song_user_train, user_song_train, consts.NEG_SAMPLES_TRAIN, \
-                                            limit=args.train_inter_limit)
+            load_train_data(pos_interactions_train, song_person, person_song, \
+                            user_song, song_user_train, user_song_train, consts.NEG_SAMPLES_TRAIN, \
+                            e_to_ix, t_to_ix, r_to_ix, args.train_path_file, limit=args.train_inter_limit)
 
-            formatted_train_data = format_paths(training_data, e_to_ix, t_to_ix, r_to_ix, consts.PAD_TOKEN)
-
-            with open('data/path_data/' + args.train_path_file, 'wb') as handle:
-                pickle.dump(formatted_train_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-        model = train(model, formatted_train_data, args.batch_size, args.epochs)
+        model = train(model, args.train_path_file, args.batch_size, args.epochs)
 
         #Save model to disk
         print("Saving model to disk...")
         torch.save(model.state_dict(), model_path)
 
     if args.eval:
-        print(["Eval loaded"])
+        print("Evaluation Starting")
         model.load_state_dict(torch.load(model_path))
         model.eval()
 
@@ -273,12 +285,8 @@ def main():
         print("Device is", device)
         model = model.to(device)
 
-        if not args.find_paths:
-            with open('data/path_data/' + args.test_path_file, 'rb') as handle:
-                pos_pair_to_interactions = pickle.load(handle)
-
-        else:
-            print("Loading data")
+        if args.find_paths:
+            print("Finding Paths")
             with open('data/song_data_vocab/user_song_tuple_test_pos_ix.txt', 'rb') as handle:
                 pos_interactions_test = pickle.load(handle)
 
@@ -288,31 +296,30 @@ def main():
             with open('data/song_data_vocab/song_user_test_ix.dict', 'rb') as handle:
                 song_user_test = pickle.load(handle)
 
-            print("Finding paths")
-            pos_pair_to_interactions  = load_test_data(pos_interactions_test, song_person, person_song, \
-                                                        user_song, song_user_test, user_song_test, consts.NEG_SAMPLES_TEST, limit=args.test_inter_limit)
-
-            with open('data/path_data/' + args.test_path_file, 'wb') as handle:
-                pickle.dump(pos_pair_to_interactions, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            load_test_data(pos_interactions_test, song_person, person_song, \
+                           user_song, song_user_test, user_song_test, consts.NEG_SAMPLES_TEST,
+                           e_to_ix, t_to_ix, r_to_ix, args.test_path_file, limit=args.test_inter_limit)
 
         #predict scores using model for each combination of one pos and 100 neg interactions
         hit_at_k_scores = defaultdict(list)
         ndcg_at_k_scores = defaultdict(list)
         max_k = 15
-        for pair,interactions in tqdm(pos_pair_to_interactions.items()):
-            formatted_test_data = format_paths(interactions, e_to_ix, t_to_ix, r_to_ix, consts.PAD_TOKEN)
 
-            prediction_scores = predict(model, formatted_test_data, args.batch_size, device)
-            target_scores = [x[1] for x in formatted_test_data]
+        file_path = 'data/path_data/' + args.test_path_file
+        with open(file_path, 'r') as file:
+            for line in tqdm(file, total=get_num_lines(file_path)):
+                test_interactions = eval(line.rstrip("\n"))
+                prediction_scores = predict(model, test_interactions, args.batch_size, device)
+                target_scores = [x[1] for x in test_interactions]
 
-            #merge prediction scores and target scores into tuples, and rank
-            merged = list(zip(prediction_scores, target_scores))
-            random.shuffle(merged)
-            s_merged = sorted(merged, key=lambda x: x[0], reverse=True)
+                #merge prediction scores and target scores into tuples, and rank
+                merged = list(zip(prediction_scores, target_scores))
+                random.shuffle(merged)
+                s_merged = sorted(merged, key=lambda x: x[0], reverse=True)
 
-            for k in range(1,max_k+1):
-                hit_at_k_scores[k].append(hit_at_k(s_merged, k))
-                ndcg_at_k_scores[k].append(ndcg_at_k(s_merged, k))
+                for k in range(1,max_k+1):
+                    hit_at_k_scores[k].append(hit_at_k(s_merged, k))
+                    ndcg_at_k_scores[k].append(ndcg_at_k(s_merged, k))
 
 
         for k in hit_at_k_scores.keys():

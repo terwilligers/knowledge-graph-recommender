@@ -1,28 +1,22 @@
 import torch
+import constants.consts as consts
 
 '''
 functions used for converting path data into format for KPRN model
 '''
 
-def format_paths(training_data, e_to_ix, t_to_ix, r_to_ix, padding_token):
+def format_paths(paths, e_to_ix, t_to_ix, r_to_ix):
     '''
     Pads paths up to max path length, converting each path into tuple
-    of (padded_path, path length). Then constructs list of these tuples each in
-    a tuple with the interaction tag.
+    of (padded_path, path length).
     '''
 
-    max_len = find_max_train_length(training_data)
-    formatted_data = []
-
-    for paths, tag in training_data:
-        new_paths = []
-        for path in paths:
-            path_len = len(path)
-            pad_path(path, e_to_ix, t_to_ix, r_to_ix, max_len, padding_token)
-            new_paths.append((path, path_len))
-        formatted_data.append((new_paths, tag))
-
-    return formatted_data
+    new_paths = []
+    for path in paths:
+        path_len = len(path)
+        pad_path(path, e_to_ix, t_to_ix, r_to_ix, consts.MAX_PATH_LEN, consts.PAD_TOKEN)
+        new_paths.append((path, path_len))
+    return new_paths
 
 def find_max_train_length(data_tuples):
     '''

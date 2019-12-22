@@ -4,7 +4,17 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 
-from model import InteractionData, my_collate, sort_batch
+from model import my_collate, sort_batch
+
+class TestInteractionData(Dataset):
+    def __init__(self, formatted_data):
+        self.data = formatted_data
+
+    def __getitem__(self, index):
+        return self.data[index]
+
+    def __len__(self):
+        return len(self.data)
 
 def convert_to_etr(e_to_ix, t_to_ix, r_to_ix, path, length):
     '''
@@ -30,7 +40,7 @@ def predict(model, formatted_data, batch_size, device):
     '''
 
     prediction_scores = []
-    interaction_data = InteractionData(formatted_data)
+    interaction_data = TestInteractionData(formatted_data)
     #shuffle false since we want data to remain in order for comparison
     test_loader = DataLoader(dataset=interaction_data, collate_fn = my_collate, batch_size=batch_size, shuffle=False)
 

@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import linecache
 
 import constants.consts as consts
 
@@ -11,15 +12,22 @@ from model import KPRN
 from tqdm import tqdm
 from statistics import mean
 
-class InteractionData(Dataset):
-    def __init__(self, formatted_data):
-        self.data = formatted_data
+class TrainInteractionData(Dataset):
+    def __init__(self, train_path_file):
+        self.file = 'data/path_data/' + train_path_file
+        self.num_interactions = 0
+        with open(self.file, "r") as f:
+            for line in f:
+                self.num_interactions += 1
 
-    def __getitem__(self, index):
-        return self.data[index]
+    def __getitem__(self, idx):
+        #load the specific interaction from the file using python linecache optimizer
+        line = linecache.getline(self.file, idx+1)
+        interaction = eval(line.rstrip("\n"))
+        return interaction
 
     def __len__(self):
-        return len(self.data)
+        return self.num_interactions
 
 
 def my_collate(batch):
@@ -42,7 +50,7 @@ def sort_batch(batch, indexes, lengths):
     return seq_tensor, indexes_tensor, seq_lengths
 
 
-def train(model, formatted_data, batch_size, epochs):
+def train(model, train_path_file, batch_size, epochs):
     '''
     -trains and outputs a model using the input data
     -formatted_data is a list of path lists, each of which consists of tuples of
@@ -62,7 +70,7 @@ def train(model, formatted_data, batch_size, epochs):
     optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=.001)
 
     #DataLoader used for batches
-    interaction_data = InteractionData(formatted_data)
+    interaction_data = TrainInteractionData(train_path_file)
     train_loader = DataLoader(dataset=interaction_data, collate_fn = my_collate, batch_size=batch_size, shuffle=True)
 
     for epoch in range(epochs):
