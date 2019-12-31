@@ -50,32 +50,36 @@ def sort_batch(batch, indexes, lengths):
     return seq_tensor, indexes_tensor, seq_lengths
 
 
-def train(model, train_path_file, batch_size, epochs):
+def train(model, train_path_file, batch_size, epochs, model_path, load_checkpoint):
     '''
     -trains and outputs a model using the input data
     -formatted_data is a list of path lists, each of which consists of tuples of
     (path, tag, path_length), where the path is padded to ensure same overall length
     '''
-    print("Starting model training")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("Device is", device)
     model = model.to(device)
 
-    loss_function = nn.NLLLoss() #negative log likelihood loss
-    #loss_function = nn.CrossEntropyLoss() #This seems to work with relu activation but nllloss does not
-    #this is because crossEntropyLoss actually automatically adds the log_softmax layer to normalize results into p-distribution
+    loss_function = nn.NLLLoss()
 
     # l2 regularization is tuned from {10−5 , 10−4 , 10−3 , 10−2 }, I think this is weight decay
     # Learning rate is found from {0.001, 0.002, 0.01, 0.02} with grid search
     optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=.001)
 
+    if load_checkpoint:
+        checkpoint = torch.load(model_path)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
     #DataLoader used for batches
     interaction_data = TrainInteractionData(train_path_file)
-    train_loader = DataLoader(dataset=interaction_data, collate_fn = my_collate, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(dataset=interaction_data, collate_fn = my_collate, batch_size=batch_size,  \
+                            shuffle=True)
 
     for epoch in range(epochs):
+        print("Epoch is:", epoch+1)
         losses = []
-        for interaction_batch, targets in tqdm(train_loader):
+        for interaction_batch, targets in tqdm(train_loader): #have tqdm here when not on colab
             #construct tensor of all paths in batch, tensor of all lengths, and tensor of interaction id
             paths = []
             lengths = []
@@ -125,8 +129,13 @@ def train(model, train_path_file, batch_size, epochs):
 
             losses.append(loss.item())
 
-
-        print("Epoch is:", epoch)
         print("loss is:", mean(losses))
+        #Save model to disk
+        print("Saving checkpoint to disk...")
+        torch.save({
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict()
+          }, model_path)
+        #torch.save(model.state_dict(), model_path)
 
     return model

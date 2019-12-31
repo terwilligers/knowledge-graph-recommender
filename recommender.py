@@ -32,6 +32,10 @@ def parse_args():
                         type=str,
                         default='model.pt',
                         help='name to save or load model from')
+    parser.add_argument('--load_checkpoint',
+                        default=False,
+                        action='store_true',
+                        help='whether to load the current model state before training ')
     parser.add_argument('--train_path_file',
                         type=str,
                         default='train_interactions.txt',
@@ -56,6 +60,14 @@ def parse_args():
                         type=int,
                         default=256,
                         help='batch_size')
+    parser.add_argument('--test_len_3_sample',
+                        type=int,
+                        default=50,
+                        help='number of connections to sample at each layer when finding length 3 paths')
+    parser.add_argument('--test_len_5_sample',
+                        type=int,
+                        default=11,
+                        help='number of connections to sample at each layer when finding length 5 paths')
 
     return parser.parse_args()
 
@@ -67,128 +79,123 @@ def load_train_data(pos_interaction_pairs, song_person, person_song, user_song_a
     Constructs paths for training data, writes each formatted interaction to file
     as we find them
     '''
+    user_to_pos_songs = convert_interaction_list_to_dict(pos_interaction_pairs[:limit])
 
-    #clear file if it was already written to
-    open('data/path_data/' + train_path_file, 'w').close()
-
-    user_to_paths = {}
-    user_to_neg_songs_with_paths = {}
-    #current index in negative list for adding negative interactions
-    user_to_cur_index = defaultdict(lambda:0)
+    path_file = open('data/path_data/' + train_path_file, 'w')
 
     pos_paths_not_found = 0
-    for [user,pos_song] in tqdm(pos_interaction_pairs[:limit]):
-        if user not in user_to_paths:
-            #find paths
-            song_to_paths = find_paths_user_to_songs(user, song_person, person_song, \
-                                                          song_user_train, user_song_train, 3, 50)
+    for user,pos_songs in tqdm(user_to_pos_songs.items(), total=len(user_to_pos_songs)):
+        song_to_paths = None
+        neg_songs_with_paths = None
+        cur_index = 0 #current index in negative list for adding negative interactions
+        for pos_song in pos_songs:
+            if song_to_paths is None:
+                #find paths
+                song_to_paths = find_paths_user_to_songs(user, song_person, person_song, \
+                                                              song_user_train, user_song_train, 3, 50)
 
-            song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song, \
-                                                         song_user_train, user_song_train, 5, 6)
+                song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song, \
+                                                             song_user_train, user_song_train, 5, 6)
 
-            for song in song_to_paths_len5.keys():
-                song_to_paths[song].extend(song_to_paths_len5[song])
+                for song in song_to_paths_len5.keys():
+                    song_to_paths[song].extend(song_to_paths_len5[song])
 
-            user_to_paths[user] = song_to_paths
+                #select negative paths
+                all_pos_songs = set(user_song_all[user])
+                songs_with_paths = set(song_to_paths.keys())
+                neg_songs_with_paths = list(songs_with_paths.difference(all_pos_songs))
+                random.shuffle(neg_songs_with_paths)
 
-            #select negative paths
-            all_pos_songs = set(user_song_all[user])
-            songs_with_paths = set(song_to_paths.keys())
-            neg_songs_with_paths = list(songs_with_paths.difference(all_pos_songs))
-            random.shuffle(neg_songs_with_paths)
-            user_to_neg_songs_with_paths[user] = neg_songs_with_paths
-
-        #add paths for positive interaction
-        pos_paths = user_to_paths[user][pos_song]
-        if len(pos_paths) > 0:
-            interaction = (format_paths(pos_paths, e_to_ix, t_to_ix, r_to_ix), 1)
-            with open('data/path_data/' + train_path_file, 'a') as path_file:
+            #add paths for positive interaction
+            pos_paths = song_to_paths[pos_song]
+            if len(pos_paths) > 0:
+                interaction = (format_paths(pos_paths, e_to_ix, t_to_ix, r_to_ix), 1)
                 path_file.write(repr(interaction) + "\n")
-        else:
-            pos_paths_not_found += 1
+            else:
+                pos_paths_not_found += 1
 
-        #add negative interactions that have paths (4 for train)
-        for i in range(neg_samples):
-            index = user_to_cur_index[user]
-            #check if not enough neg paths
-            if index >= len(user_to_neg_songs_with_paths[user]):
-                print("not enough neg paths")
-                break
-            neg_song = user_to_neg_songs_with_paths[user][index]
-            neg_paths = user_to_paths[user][neg_song]
-            interaction = (format_paths(neg_paths, e_to_ix, t_to_ix, r_to_ix), 0)
-            with open('data/path_data/' + train_path_file, 'a') as path_file:
+            #add negative interactions that have paths (4 for train)
+            for i in range(neg_samples):
+                #check if not enough neg paths
+                if cur_index >= len(neg_songs_with_paths):
+                    print("not enough neg paths")
+                    break
+                neg_song = neg_songs_with_paths[cur_index]
+                neg_paths = song_to_paths[neg_song]
+                interaction = (format_paths(neg_paths, e_to_ix, t_to_ix, r_to_ix), 0)
                 path_file.write(repr(interaction) + "\n")
 
-            user_to_cur_index[user] += 1
+                cur_index += 1
 
     print("number of pos paths attempted to find:", limit)
     print("number of pos paths not found:", pos_paths_not_found)
+
+    path_file.close()
     return
 
 
 def load_test_data(pos_interaction_pairs, song_person, person_song, user_song_all, \
               song_user_test, user_song_test, neg_samples, e_to_ix, \
-              t_to_ix, r_to_ix, test_path_file, limit=10):
+              t_to_ix, r_to_ix, test_path_file, len_3_sample, len_5_sample, limit=10):
     '''
     Constructs paths for test data, for each combo of a pos paths and 100 neg paths
     we store these in a single line in the file
     '''
-    #clear file if it was already written to
-    open('data/path_data/' + test_path_file, 'w').close()
+    user_to_pos_songs = convert_interaction_list_to_dict(pos_interaction_pairs[:limit])
 
-    user_to_paths = {}
-    user_to_neg_songs_with_paths = {}
-    #current index in negative list for adding negative interactions
-    user_to_cur_index = defaultdict(lambda:0)
+    path_file = open('data/path_data/' + test_path_file, 'w')
 
     pos_paths_not_found = 0
-    for [user,pos_song] in tqdm(pos_interaction_pairs[:limit]):
-        interactions = []
-        if user not in user_to_paths:
-            #find paths
-            song_to_paths = find_paths_user_to_songs(user, song_person, person_song, \
-                                                          song_user_test, user_song_test, 3, 150)
+    for user,pos_songs in tqdm(user_to_pos_songs.items(), total=len(user_to_pos_songs)):
+        song_to_paths = None
+        neg_songs_with_paths = None
+        cur_index = 0 #current index in negative list for adding negative interactions
+        for pos_song in pos_songs:
+            interactions = []
+            if song_to_paths is None:
+                #find paths
+                song_to_paths = find_paths_user_to_songs(user, song_person, person_song, \
+                                                              song_user_test, user_song_test, 3, len_3_sample)
 
-            song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song, \
-                                                         song_user_test, user_song_test, 5, 8)
+                song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song, \
+                                                             song_user_test, user_song_test, 5, len_5_sample)
 
-            for song in song_to_paths_len5.keys():
-                song_to_paths[song].extend(song_to_paths_len5[song])
+                for song in song_to_paths_len5.keys():
+                    song_to_paths[song].extend(song_to_paths_len5[song])
 
-            user_to_paths[user] = song_to_paths
+                #select negative paths
+                all_pos_songs = set(user_song_all[user])
+                songs_with_paths = set(song_to_paths.keys())
+                neg_songs_with_paths = list(songs_with_paths.difference(all_pos_songs))
+                random.shuffle(neg_songs_with_paths)
 
-            #select negative paths
-            all_pos_songs = set(user_song_all[user])
-            songs_with_paths = set(song_to_paths.keys())
-            neg_songs_with_paths = list(songs_with_paths.difference(all_pos_songs))
-            random.shuffle(neg_songs_with_paths)
-            user_to_neg_songs_with_paths[user] = neg_songs_with_paths
+            #add paths for positive interaction
+            pos_paths = song_to_paths[pos_song]
+            if len(pos_paths) > 0:
+                interactions.append((format_paths(pos_paths, e_to_ix, t_to_ix, r_to_ix), 1))
+            else:
+                pos_paths_not_found += 1
+                #continue here since we don't test interactions with no pos paths,
+                continue
 
-        #add paths for positive interaction
-        pos_paths = user_to_paths[user][pos_song]
-        if len(pos_paths) > 0:
-            interactions.append((format_paths(pos_paths, e_to_ix, t_to_ix, r_to_ix), 1))
-        else:
-            pos_paths_not_found += 1
+            #add negative interactions that have paths (4 for train)
+            for i in range(neg_samples):
+                #check if not enough neg paths
+                if cur_index >= len(neg_songs_with_paths):
+                    print("not enough neg paths, only found:", str(i))
+                    break
+                neg_song = neg_songs_with_paths[cur_index]
+                neg_paths = song_to_paths[neg_song]
+                interactions.append((format_paths(neg_paths, e_to_ix, t_to_ix, r_to_ix), 0))
+                cur_index += 1
 
-        #add negative interactions that have paths (4 for train)
-        for i in range(neg_samples):
-            index = user_to_cur_index[user]
-            #check if not enough neg paths
-            if index >= len(user_to_neg_songs_with_paths[user]):
-                print("not enough neg paths")
-                break
-            neg_song = user_to_neg_songs_with_paths[user][index]
-            neg_paths = user_to_paths[user][neg_song]
-            interactions.append((format_paths(neg_paths, e_to_ix, t_to_ix, r_to_ix), 0))
-            user_to_cur_index[user] += 1
-
-        with open('data/path_data/' + test_path_file, 'a') as path_file:
+            #might want to only do this if all interactions were found
             path_file.write(repr(interactions) + "\n")
 
     print("number of pos paths attempted to find:", limit)
     print("number of pos paths not found:", pos_paths_not_found)
+
+    path_file.close()
     return
 
 
@@ -235,6 +242,13 @@ def get_num_lines(file_path):
         lines += 1
     return lines
 
+def convert_interaction_list_to_dict(pos_interaction_pairs):
+    user_to_pos_songs = defaultdict(list)
+    for (user,song) in pos_interaction_pairs:
+        user_to_pos_songs[user].append(song)
+
+    return user_to_pos_songs
+
 
 def main():
     '''
@@ -270,19 +284,18 @@ def main():
                             user_song, song_user_train, user_song_train, consts.NEG_SAMPLES_TRAIN, \
                             e_to_ix, t_to_ix, r_to_ix, args.train_path_file, limit=args.train_inter_limit)
 
-        model = train(model, args.train_path_file, args.batch_size, args.epochs)
-
-        #Save model to disk
-        print("Saving model to disk...")
-        torch.save(model.state_dict(), model_path)
+        model = train(model, args.train_path_file, args.batch_size, args.epochs, model_path, args.load_checkpoint)
 
     if args.eval:
         print("Evaluation Starting")
-        model.load_state_dict(torch.load(model_path))
-        model.eval()
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print("Device is", device)
+
+        checkpoint = torch.load(model_path, map_location=torch.device(device))
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model.eval()
+
         model = model.to(device)
 
         if args.find_paths:
@@ -296,9 +309,10 @@ def main():
             with open('data/song_data_vocab/song_user_test_ix.dict', 'rb') as handle:
                 song_user_test = pickle.load(handle)
 
-            load_test_data(pos_interactions_test, song_person, person_song, \
+            load_test_data(pos_interactions_test, song_person, person_song,
                            user_song, song_user_test, user_song_test, consts.NEG_SAMPLES_TEST,
-                           e_to_ix, t_to_ix, r_to_ix, args.test_path_file, limit=args.test_inter_limit)
+                           e_to_ix, t_to_ix, r_to_ix, args.test_path_file,
+                           args.test_len_3_sample, args.test_len_5_sample, limit=args.test_inter_limit)
 
         #predict scores using model for each combination of one pos and 100 neg interactions
         hit_at_k_scores = defaultdict(list)
