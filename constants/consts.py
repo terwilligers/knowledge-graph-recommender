@@ -1,7 +1,25 @@
+SONG_DATASET_DIR = 'song_dataset/'
+SONG_DATA_DIR = 'song_data/'
+SONG_IX_DATA_DIR = 'song_data_ix/'
+SONG_IX_MAPPING_DIR = 'song_ix_mapping/'
+
+PERSON_SONG_DICT = 'person_song.dict'
+SONG_PERSON_DICT = 'song_person.dict'
+USER_SONG_DICT = 'user_song.dict'
+SONG_USER_DICT = 'song_user.dict'
+POS_INTERACTIONS = 'pos_interactions.txt'
+
+TYPE_TO_IX = 'type_to_ix.dict'
+RELATION_TO_IX = 'relation_to_ix.dict'
+ENTITY_TO_IX = 'entity_to_ix.dict'
+IX_TO_TYPE = 'ix_to_type.dict'
+IX_TO_RELATION = 'ix_to_relation.dict'
+IX_TO_ENTITY = 'ix_to_entity.dict'
+
 PAD_TOKEN = '#PAD_TOKEN'
-PERSON_TYPE = 0
+SONG_TYPE = 0
 USER_TYPE = 1
-SONG_TYPE = 2
+PERSON_TYPE = 2
 PAD_TYPE = 3
 
 SONG_PERSON_REL = 0

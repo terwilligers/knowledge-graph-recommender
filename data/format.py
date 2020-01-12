@@ -28,8 +28,6 @@ def find_max_train_length(data_tuples):
             max_len = max(len(path), max_len)
     return max_len
 
-
-
 def pad_path(seq, e_to_ix, t_to_ix, r_to_ix, max_len, padding_token):
     '''
     Pads paths up to max path length
