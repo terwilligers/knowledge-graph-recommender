@@ -8,7 +8,7 @@ from tqdm import tqdm
 import sys
 from os import path, mkdir
 
-sys.path.append(path.dirname(path.dirname(path.abspath('../constants'))))
+sys.path.append(path.dirname(path.dirname(path.abspath('./constants'))))
 import constants.consts as consts
 
 
@@ -97,7 +97,7 @@ def find_subnetwork(network_type, dir, factor=0.1):
         return
 
     # Load Data
-    
+
     with open(dir + consts.SONG_USER_DICT, 'rb') as handle:
         song_user = pickle.load(handle)
     with open(dir + consts.USER_SONG_DICT, 'rb') as handle:
