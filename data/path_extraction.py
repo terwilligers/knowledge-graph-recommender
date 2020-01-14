@@ -6,6 +6,7 @@ import pickle
 import random
 import constants.consts as consts
 from collections import defaultdict
+import copy
 from datetime import datetime
 
 
@@ -16,9 +17,9 @@ class PathState:
         self.entities = entities    # set to keep track of the entities alr in the path to avoid cycles
 
 def get_random_index(nums, max_length):
-    index_list = list(range(max_length))
-    random.shuffle(index_list)
-    return index_list[:nums]
+    # index_list = list(range(max_length))
+    # random.shuffle(index_list)
+    return [0]
 
 
 def find_paths_user_to_songs(start_user, song_person, person_song, song_user, user_song, max_length, sample_nums):
@@ -27,7 +28,7 @@ def find_paths_user_to_songs(start_user, song_person, person_song, song_user, us
     '''
     #start_time=datetime.now()
     song_to_paths = defaultdict(list)
-
+    d = dict(song_to_paths)
     stack = []
     start = PathState([[start_user, consts.USER_TYPE, consts.END_REL]], 0, {start_user})
     stack.append(start)
@@ -47,7 +48,7 @@ def find_paths_user_to_songs(start_user, song_person, person_song, song_user, us
             for index in index_list:
                 song = song_list[index]
                 if song not in front.entities:
-                    new_path = front.path[:]
+                    new_path = copy.deepcopy(front.path)
                     new_path[-1][2] = consts.USER_SONG_REL
                     new_path.append([song, consts.SONG_TYPE, consts.END_REL])
                     new_state = PathState(new_path, front.length + 1, front.entities|{song})
@@ -60,7 +61,7 @@ def find_paths_user_to_songs(start_user, song_person, person_song, song_user, us
                 for index in index_list:
                     user = user_list[index]
                     if user not in front.entities:
-                        new_path = front.path[:]
+                        new_path = copy.deepcopy(front.path)
                         new_path[-1][2] = consts.SONG_USER_REL
                         new_path.append([user, consts.USER_TYPE, consts.END_REL])
                         new_state = PathState(new_path, front.length + 1, front.entities|{user})
@@ -71,7 +72,7 @@ def find_paths_user_to_songs(start_user, song_person, person_song, song_user, us
                 for index in index_list:
                     person = person_list[index]
                     if person not in front.entities:
-                        new_path = front.path[:]
+                        new_path = copy.deepcopy(front.path)
                         new_path[-1][2] = consts.SONG_PERSON_REL
                         new_path.append([person, consts.PERSON_TYPE, consts.END_REL])
                         new_state = PathState(new_path, front.length + 1, front.entities|{person})
@@ -83,7 +84,7 @@ def find_paths_user_to_songs(start_user, song_person, person_song, song_user, us
             for index in index_list:
                 song = song_list[index]
                 if song not in front.entities:
-                    new_path = front.path[:]
+                    new_path = copy.deepcopy(front.path)
                     new_path[-1][2] = consts.PERSON_SONG_REL
                     new_path.append([song, consts.SONG_TYPE, consts.END_REL])
                     new_state = PathState(new_path, front.length + 1, front.entities|{song})
@@ -95,19 +96,19 @@ def find_paths_user_to_songs(start_user, song_person, person_song, song_user, us
 
 
 def main():
-    with open("song_data_vocab/song_person_ix.dict", 'rb') as handle:
+    with open("song_data_ix/dense_ix_song_person.dict", 'rb') as handle:
         song_person = pickle.load(handle)
 
-    with open("song_data_vocab/person_song_ix.dict", 'rb') as handle:
+    with open("song_data_ix/dense_ix_person_song.dict", 'rb') as handle:
         person_song = pickle.load(handle)
 
-    with open("song_data_vocab/song_user_ix.dict", 'rb') as handle:
+    with open("song_data_ix/dense_ix_song_user.dict", 'rb') as handle:
         song_user = pickle.load(handle)
 
-    with open("song_data_vocab/user_song_ix.dict", 'rb') as handle:
+    with open("song_data_ix/dense_ix_user_song.dict", 'rb') as handle:
         user_song = pickle.load(handle)
 
-    print(find_paths_user_to_songs(225331, song_person, person_song, song_user, user_song, 3, 30))
+    print(find_paths_user_to_songs(224218, song_person, person_song, song_user, user_song, 3, 1))
 
 
 if __name__ == "__main__":

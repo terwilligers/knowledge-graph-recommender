@@ -7,7 +7,6 @@ PERSON_SONG_DICT = 'person_song.dict'
 SONG_PERSON_DICT = 'song_person.dict'
 USER_SONG_DICT = 'user_song.dict'
 SONG_USER_DICT = 'song_user.dict'
-POS_INTERACTIONS = 'pos_interactions.txt'
 
 TYPE_TO_IX = 'type_to_ix.dict'
 RELATION_TO_IX = 'relation_to_ix.dict'

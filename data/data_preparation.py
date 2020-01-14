@@ -8,7 +8,7 @@ from tqdm import tqdm
 import sys
 from os import path, mkdir
 
-sys.path.append(path.dirname(path.dirname(path.abspath('../constants'))))
+sys.path.append(path.dirname(path.dirname(path.abspath('./constants'))))
 import constants.consts as consts
 
 
