@@ -66,7 +66,7 @@ def sort_batch(batch, indexes, lengths):
     return seq_tensor, indexes_tensor, seq_lengths
 
 
-def train(model, train_path_file, batch_size, epochs, model_path, load_checkpoint, not_in_memory):
+def train(model, train_path_file, batch_size, epochs, model_path, load_checkpoint, not_in_memory, lr):
     '''
     -trains and outputs a model using the input data
     -formatted_data is a list of path lists, each of which consists of tuples of
@@ -80,7 +80,7 @@ def train(model, train_path_file, batch_size, epochs, model_path, load_checkpoin
 
     # l2 regularization is tuned from {10−5 , 10−4 , 10−3 , 10−2 }, I think this is weight decay
     # Learning rate is found from {0.001, 0.002, 0.01, 0.02} with grid search
-    optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=.001)
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=.001)
 
     if load_checkpoint:
         checkpoint = torch.load(model_path)
@@ -89,8 +89,7 @@ def train(model, train_path_file, batch_size, epochs, model_path, load_checkpoin
 
     #DataLoader used for batches
     interaction_data = TrainInteractionData(train_path_file, in_memory=not not_in_memory)
-    train_loader = DataLoader(dataset=interaction_data, collate_fn = my_collate, batch_size=batch_size,  \
-                            shuffle=True)
+    train_loader = DataLoader(dataset=interaction_data, collate_fn = my_collate, batch_size=batch_size, shuffle=True)
 
     for epoch in range(epochs):
         print("Epoch is:", epoch+1)
