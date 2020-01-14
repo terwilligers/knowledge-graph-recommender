@@ -68,23 +68,27 @@ def parse_args():
                         type=int,
                         default=11,
                         help='number of connections to sample at each layer when finding length 5 paths')
+    parser.add_argument('--not_in_memory',
+                        default=False,
+                        action='store_true',
+                        help='denotes that the path data does not fit in memory')
 
     return parser.parse_args()
 
 
-def load_train_data(pos_interaction_pairs, song_person, person_song, user_song_all, \
+def load_train_data(song_person, person_song, user_song_all, \
               song_user_train, user_song_train, neg_samples, e_to_ix, \
               t_to_ix, r_to_ix, train_path_file, limit=10):
     '''
     Constructs paths for training data, writes each formatted interaction to file
     as we find them
     '''
-    user_to_pos_songs = convert_interaction_list_to_dict(pos_interaction_pairs[:limit])
-
     path_file = open('data/path_data/' + train_path_file, 'w')
 
     pos_paths_not_found = 0
-    for user,pos_songs in tqdm(user_to_pos_songs.items(), total=len(user_to_pos_songs)):
+    total_pos_interactions = 0
+    for user,pos_songs in tqdm(list(user_song_train.items())[:limit]):
+        total_pos_interactions += len(pos_songs)
         song_to_paths = None
         neg_songs_with_paths = None
         cur_index = 0 #current index in negative list for adding negative interactions
@@ -127,33 +131,34 @@ def load_train_data(pos_interaction_pairs, song_person, person_song, user_song_a
 
                 cur_index += 1
 
-    print("number of pos paths attempted to find:", limit)
+    print("number of pos paths attempted to find:", total_pos_interactions)
     print("number of pos paths not found:", pos_paths_not_found)
 
     path_file.close()
     return
 
 
-def load_test_data(pos_interaction_pairs, song_person, person_song, user_song_all, \
+def load_test_data(song_person, person_song, user_song_all, \
               song_user_test, user_song_test, neg_samples, e_to_ix, \
               t_to_ix, r_to_ix, test_path_file, len_3_sample, len_5_sample, limit=10):
     '''
     Constructs paths for test data, for each combo of a pos paths and 100 neg paths
     we store these in a single line in the file
     '''
-    user_to_pos_songs = convert_interaction_list_to_dict(pos_interaction_pairs[:limit])
 
     path_file = open('data/path_data/' + test_path_file, 'w')
 
     pos_paths_not_found = 0
-    for user,pos_songs in tqdm(user_to_pos_songs.items(), total=len(user_to_pos_songs)):
+    total_pos_interactions = 0
+    for user,pos_songs in tqdm(list(user_song_test.items())[:limit]):
+        total_pos_interactions += len(pos_songs)
         song_to_paths = None
         neg_songs_with_paths = None
         cur_index = 0 #current index in negative list for adding negative interactions
         for pos_song in pos_songs:
             interactions = []
             if song_to_paths is None:
-                #find paths
+                #find paths, **Question: should we be using song_user_test or song_user here???**
                 song_to_paths = find_paths_user_to_songs(user, song_person, person_song, \
                                                               song_user_test, user_song_test, 3, len_3_sample)
 
@@ -189,10 +194,9 @@ def load_test_data(pos_interaction_pairs, song_person, person_song, user_song_al
                 interactions.append((format_paths(neg_paths, e_to_ix, t_to_ix, r_to_ix), 0))
                 cur_index += 1
 
-            #might want to only do this if all interactions were found
             path_file.write(repr(interactions) + "\n")
 
-    print("number of pos paths attempted to find:", limit)
+    print("number of pos paths attempted to find:", total_pos_interactions)
     print("number of pos paths not found:", pos_paths_not_found)
 
     path_file.close()
@@ -203,13 +207,13 @@ def load_string_to_ix_dicts():
     '''
     Loads the dictionaries mapping entity, relation, and type to id
     '''
-    with open('data/song_data_vocab/type_to_ix.dict', 'rb') as handle:
+    data_path = 'data/' + consts.SONG_IX_MAPPING_DIR
+
+    with open(data_path + 'dense_type_to_ix.dict', 'rb') as handle:
         type_to_ix = pickle.load(handle)
-
-    with open('data/song_data_vocab/relation_to_ix.dict', 'rb') as handle:
+    with open(data_path + 'dense_relation_to_ix.dict', 'rb') as handle:
         relation_to_ix = pickle.load(handle)
-
-    with open('data/song_data_vocab/entity_to_ix.dict', 'rb') as handle:
+    with open(data_path + 'dense_entity_to_ix.dict', 'rb') as handle:
         entity_to_ix = pickle.load(handle)
 
     return type_to_ix, relation_to_ix, entity_to_ix
@@ -219,16 +223,15 @@ def load_rel_ix_dicts():
     '''
     Loads the relation dictionaries
     '''
-    with open("data/song_data_vocab/song_person_ix.dict", 'rb') as handle:
+    data_path = 'data/' + consts.SONG_IX_DATA_DIR
+
+    with open(data_path + 'dense_ix_song_person.dict', 'rb') as handle:
         song_person = pickle.load(handle)
-
-    with open("data/song_data_vocab/person_song_ix.dict", 'rb') as handle:
+    with open(data_path + 'dense_ix_person_song.dict', 'rb') as handle:
         person_song = pickle.load(handle)
-
-    with open("data/song_data_vocab/song_user_ix.dict", 'rb') as handle:
+    with open(data_path + 'dense_ix_song_user.dict', 'rb') as handle:
         song_user = pickle.load(handle)
-
-    with open("data/song_data_vocab/user_song_ix.dict", 'rb') as handle:
+    with open(data_path + 'dense_ix_user_song.dict', 'rb') as handle:
         user_song = pickle.load(handle)
 
     return song_person, person_song, song_user, user_song
@@ -241,13 +244,6 @@ def get_num_lines(file_path):
     while buf.readline():
         lines += 1
     return lines
-
-def convert_interaction_list_to_dict(pos_interaction_pairs):
-    user_to_pos_songs = defaultdict(list)
-    for (user,song) in pos_interaction_pairs:
-        user_to_pos_songs[user].append(song)
-
-    return user_to_pos_songs
 
 
 def main():
@@ -265,26 +261,25 @@ def main():
     model = KPRN(consts.ENTITY_EMB_DIM, consts.TYPE_EMB_DIM, consts.REL_EMB_DIM, consts.HIDDEN_DIM, \
                  len(e_to_ix), len(t_to_ix), len(r_to_ix), consts.TARGET_SIZE)
 
+    data_ix_path = 'data/' + consts.SONG_IX_DATA_DIR
 
     if args.train:
         print("Training Starting")
         #either load interactions from disk, or run path extraction algorithm
         if args.find_paths:
             print("Finding paths")
-            with open('data/song_data_vocab/user_song_tuple_train_pos_ix.txt', 'rb') as handle:
-                pos_interactions_train = pickle.load(handle)
 
-            with open('data/song_data_vocab/user_song_train_ix.dict', 'rb') as handle:
+            with open(data_ix_path + 'dense_train_ix_user_song.dict', 'rb') as handle:
                 user_song_train = pickle.load(handle)
-
-            with open('data/song_data_vocab/song_user_train_ix.dict', 'rb') as handle:
+            with open(data_ix_path + 'dense_train_ix_song_user.dict', 'rb') as handle:
                 song_user_train = pickle.load(handle)
 
-            load_train_data(pos_interactions_train, song_person, person_song, \
-                            user_song, song_user_train, user_song_train, consts.NEG_SAMPLES_TRAIN, \
-                            e_to_ix, t_to_ix, r_to_ix, args.train_path_file, limit=args.train_inter_limit)
+            load_train_data(song_person, person_song, user_song, song_user_train,\
+                            user_song_train, consts.NEG_SAMPLES_TRAIN, e_to_ix, \
+                            t_to_ix, r_to_ix, args.train_path_file, limit=args.train_inter_limit)
 
-        model = train(model, args.train_path_file, args.batch_size, args.epochs, model_path, args.load_checkpoint)
+        model = train(model, args.train_path_file, args.batch_size, args.epochs, \
+                     model_path, args.load_checkpoint, args.not_in_memory)
 
     if args.eval:
         print("Evaluation Starting")
@@ -300,18 +295,14 @@ def main():
 
         if args.find_paths:
             print("Finding Paths")
-            with open('data/song_data_vocab/user_song_tuple_test_pos_ix.txt', 'rb') as handle:
-                pos_interactions_test = pickle.load(handle)
 
-            with open('data/song_data_vocab/user_song_test_ix.dict', 'rb') as handle:
+            with open(data_ix_path + 'dense_test_ix_user_song.dict', 'rb') as handle:
                 user_song_test = pickle.load(handle)
-
-            with open('data/song_data_vocab/song_user_test_ix.dict', 'rb') as handle:
+            with open(data_ix_path + 'dense_test_ix_song_user.dict', 'rb') as handle:
                 song_user_test = pickle.load(handle)
 
-            load_test_data(pos_interactions_test, song_person, person_song,
-                           user_song, song_user_test, user_song_test, consts.NEG_SAMPLES_TEST,
-                           e_to_ix, t_to_ix, r_to_ix, args.test_path_file,
+            load_test_data(song_person, person_song, user_song, song_user_test, user_song_test,
+                            consts.NEG_SAMPLES_TEST, e_to_ix, t_to_ix, r_to_ix, args.test_path_file,
                            args.test_len_3_sample, args.test_len_5_sample, limit=args.test_inter_limit)
 
         #predict scores using model for each combination of one pos and 100 neg interactions
