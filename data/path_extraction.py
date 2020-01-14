@@ -17,9 +17,9 @@ class PathState:
         self.entities = entities    # set to keep track of the entities alr in the path to avoid cycles
 
 def get_random_index(nums, max_length):
-    # index_list = list(range(max_length))
-    # random.shuffle(index_list)
-    return [0]
+    index_list = list(range(max_length))
+    random.shuffle(index_list)
+    return index_list[:nums]
 
 
 def find_paths_user_to_songs(start_user, song_person, person_song, song_user, user_song, max_length, sample_nums):
@@ -28,7 +28,6 @@ def find_paths_user_to_songs(start_user, song_person, person_song, song_user, us
     '''
     #start_time=datetime.now()
     song_to_paths = defaultdict(list)
-    d = dict(song_to_paths)
     stack = []
     start = PathState([[start_user, consts.USER_TYPE, consts.END_REL]], 0, {start_user})
     stack.append(start)
