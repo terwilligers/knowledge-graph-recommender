@@ -38,7 +38,21 @@ class BPR(object):
         self.negative_item_regularization = args.negative_item_regularization
         self.update_negative_item_factors = args.update_negative_item_factors
 
-    def their_init(self,data):
+    def train(self,data,sampler,num_iters):
+        """train model
+        data: user-item matrix as a scipy sparse matrix
+              users and items are zero-indexed
+        """
+        self.init(data)
+
+        print 'initial loss = {0}'.format(self.loss())
+        for it in xrange(num_iters):
+            print 'starting iteration {0}'.format(it)
+            for u,i,j in sampler.generate_samples(self.data):
+                self.update_factors(u,i,j)
+            print 'iteration {0}: loss = {1}'.format(it,self.loss())
+
+    def init(self,data):
         self.data = data
         self.num_users,self.num_items = self.data.shape
 
@@ -48,27 +62,13 @@ class BPR(object):
 
         self.create_loss_samples(data)
 
-    def train(self,data,sampler,num_iters):
-        """train model
-        data: user-item matrix as a scipy sparse matrix
-              users and items are zero-indexed
-        """
-        self.their_init(data)
-
-        print('initial loss = {0}'.format(self.loss()))
-        for it in xrange(num_iters):
-            print('starting iteration {0}'.format(it))
-            for u,i,j in sampler.generate_samples(self.data):
-                self.update_factors(u,i,j)
-            print('iteration {0}: loss = {1}'.format(it,self.loss()))
-
     def create_loss_samples(self, data):
         # apply rule of thumb to decide num samples over which to compute loss
         num_loss_samples = int(100*self.num_users**0.5)
 
-        print('sampling {0} <user,item i,item j> triples...'.format(num_loss_samples))
+        print 'sampling {0} <user,item i,item j> triples...'.format(num_loss_samples)
         sampler = UniformUserUniformItem(True)
-        self.loss_samples = [t for t in sampler.generate_samples(data, num_loss_samples)]
+        self.loss_samples = [t for t in sampler.generate_samples(data,num_loss_samples)]
 
     def update_factors(self,u,i,j,update_u=True,update_i=True):
         """apply SGD update"""
@@ -77,7 +77,10 @@ class BPR(object):
         x = self.item_bias[i] - self.item_bias[j] \
             + np.dot(self.user_factors[u,:],self.item_factors[i,:]-self.item_factors[j,:])
 
-        z = 1.0/(1.0+exp(x))
+        try:
+            z = 1.0/(1.0+exp(x))
+        except OverflowError:
+            z = np.nextafter(0, 1) # smallest positive double
 
         # update bias terms
         if update_i:
@@ -101,7 +104,11 @@ class BPR(object):
         ranking_loss = 0;
         for u,i,j in self.loss_samples:
             x = self.predict(u,i) - self.predict(u,j)
-            ranking_loss += 1.0/(1.0+exp(x))
+
+            try:
+                ranking_loss += 1.0/(1.0+exp(x))
+            except OverflowError:
+                ranking_loss = np.nextafter(0, 1) # smallest positive double
 
         complexity = 0;
         for u,i,j in self.loss_samples:
@@ -137,6 +144,10 @@ class Sampler(object):
 
     def sample_negative_item(self,user_items):
         j = self.random_item()
+
+        from scipy import sparse
+        user_items = sparse.csr_matrix.toarray(sparse.csr_matrix(user_items))
+
         while j in user_items:
             j = self.random_item()
         return j
