@@ -252,6 +252,7 @@ def main():
     will eventually have command line args for different items
     '''
     print("Main Loaded")
+    random.seed(1)
     args = parse_args()
     model_path = "model/" + args.model
 

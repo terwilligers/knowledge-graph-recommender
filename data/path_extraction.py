@@ -7,7 +7,6 @@ import random
 import constants.consts as consts
 from collections import defaultdict
 import copy
-from datetime import datetime
 
 
 class PathState:
@@ -26,7 +25,6 @@ def find_paths_user_to_songs(start_user, song_person, person_song, song_user, us
     '''
     Finds sampled paths of max depth from a user to a sampling of songs
     '''
-    #start_time=datetime.now()
     song_to_paths = defaultdict(list)
     stack = []
     start = PathState([[start_user, consts.USER_TYPE, consts.END_REL]], 0, {start_user})
@@ -88,8 +86,6 @@ def find_paths_user_to_songs(start_user, song_person, person_song, song_user, us
                     new_path.append([song, consts.SONG_TYPE, consts.END_REL])
                     new_state = PathState(new_path, front.length + 1, front.entities|{song})
                     stack.append(new_state)
-
-    #print("one user took", datetime.now()-start_time)
 
     return song_to_paths
 

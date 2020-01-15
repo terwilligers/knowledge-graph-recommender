@@ -5,7 +5,7 @@ import torch.nn.functional as F
 class KPRN(nn.Module):
 
     def __init__(self, e_emb_dim, t_emb_dim, r_emb_dim, hidden_dim, e_vocab_size,
-                 t_vocab_size, r_vocab_size, tagset_size):
+                 t_vocab_size, r_vocab_size, target_size):
         super(KPRN, self).__init__()
         self.hidden_dim = hidden_dim
 
@@ -17,9 +17,9 @@ class KPRN(nn.Module):
         # with dimensionality hidden_dim.
         self.lstm = nn.LSTM(e_emb_dim + t_emb_dim + r_emb_dim, hidden_dim)
 
-        # The linear layer that maps from hidden state space to to tags
+        # The linear layer that maps from hidden state space to target
         self.linear1 = nn.Linear(hidden_dim, hidden_dim)
-        self.linear2 = nn.Linear(hidden_dim, tagset_size)
+        self.linear2 = nn.Linear(hidden_dim, target_size)
 
     def forward(self, paths, path_lengths):
         #transpose, so entities 1st row, types 2nd row, and relations 3nd (these are dim 1 and 2 since batch is 0)
