@@ -2,6 +2,7 @@ SONG_DATASET_DIR = 'song_dataset/'
 SONG_DATA_DIR = 'song_data/'
 SONG_IX_DATA_DIR = 'song_data_ix/'
 SONG_IX_MAPPING_DIR = 'song_ix_mapping/'
+PATH_DATA_DIR = 'path_data/'
 
 PERSON_SONG_DICT = 'person_song.dict'
 SONG_PERSON_DICT = 'song_person.dict'
@@ -33,7 +34,7 @@ ENTITY_EMB_DIM = 64 #64 in paper
 TYPE_EMB_DIM =32 #32 in paper
 REL_EMB_DIM = 32 #32 in paper
 HIDDEN_DIM = 256 #256 in paper
-TARGET_SIZE = 2 #since 0 or 1
+TAG_SIZE = 2 #since 0 or 1
 
 MAX_PATH_LEN = 6
 NEG_SAMPLES_TRAIN = 4

@@ -13,6 +13,7 @@ from eval import hit_at_k, ndcg_at_k
 from tqdm import tqdm
 from statistics import mean
 from collections import defaultdict
+from os import mkdir
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -44,13 +45,13 @@ def parse_args():
                         type=str,
                         default='test_interactions.txt',
                         help='file name to store/load test path dictionary')
-    parser.add_argument('--train_inter_limit',
+    parser.add_argument('--train_user_limit',
                         type=int,
-                        default=10000,
+                        default=10,
                         help='max number of pos train interactions to find paths for')
-    parser.add_argument('--test_inter_limit',
+    parser.add_argument('--test_user_limit',
                         type=int,
-                        default=1000,
+                        default=10,
                         help='max number of pos test interactions to find paths for')
     parser.add_argument('-e','--epochs',
                         type=int,
@@ -87,6 +88,13 @@ def parse_args():
 
     return parser.parse_args()
 
+def create_directory(dir):
+    print("Creating directory %s" % dir)
+    try:
+        mkdir(dir)
+    except FileExistsError:
+        print("Directory already exists")
+
 
 def load_train_data(song_person, person_song, user_song_all,
               song_user_train, user_song_train, neg_samples, e_to_ix,
@@ -95,7 +103,10 @@ def load_train_data(song_person, person_song, user_song_all,
     Constructs paths for training data, writes each formatted interaction to file
     as we find them
     '''
-    path_file = open('data/path_data/' + train_path_file, 'w')
+
+    path_dir = 'data/' + consts.PATH_DATA_DIR
+    create_directory(path_dir)
+    path_file = open(path_dir + train_path_file, 'w')
 
     pos_paths_not_found = 0
     total_pos_interactions = 0
@@ -157,8 +168,9 @@ def load_test_data(song_person, person_song, user_song_all,
     Constructs paths for test data, for each combo of a pos paths and 100 neg paths
     we store these in a single line in the file
     '''
-
-    path_file = open('data/path_data/' + test_path_file, 'w')
+    path_dir = 'data/' + consts.PATH_DATA_DIR
+    create_directory(path_dir)
+    path_file = open(path_dir + test_path_file, 'w')
 
     pos_paths_not_found = 0
     total_pos_interactions = 0
@@ -272,7 +284,7 @@ def main():
     song_person, person_song, song_user, user_song = load_rel_ix_dicts()
 
     model = KPRN(consts.ENTITY_EMB_DIM, consts.TYPE_EMB_DIM, consts.REL_EMB_DIM, consts.HIDDEN_DIM,
-                 len(e_to_ix), len(t_to_ix), len(r_to_ix), consts.TARGET_SIZE)
+                 len(e_to_ix), len(t_to_ix), len(r_to_ix), consts.TAG_SIZE)
 
     data_ix_path = 'data/' + consts.SONG_IX_DATA_DIR
 
@@ -289,7 +301,7 @@ def main():
 
             load_train_data(song_person, person_song, user_song, song_user_train,
                             user_song_train, consts.NEG_SAMPLES_TRAIN, e_to_ix,
-                            t_to_ix, r_to_ix, args.train_path_file, limit=args.train_inter_limit)
+                            t_to_ix, r_to_ix, args.train_path_file, limit=args.train_user_limit)
 
         model = train(model, args.train_path_file, args.batch_size, args.epochs, model_path,
                       args.load_checkpoint, args.not_in_memory, args.lr, args.l2_reg, args.gamma)
@@ -316,7 +328,7 @@ def main():
 
             load_test_data(song_person, person_song, user_song, song_user_test, user_song_test,
                             consts.NEG_SAMPLES_TEST, e_to_ix, t_to_ix, r_to_ix, args.test_path_file,
-                           args.test_len_3_sample, args.test_len_5_sample, limit=args.test_inter_limit)
+                           args.test_len_3_sample, args.test_len_5_sample, limit=args.test_user_limit)
 
         #predict scores using model for each combination of one pos and 100 neg interactions
         hit_at_k_scores = defaultdict(list)
