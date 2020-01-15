@@ -72,12 +72,24 @@ def parse_args():
                         default=False,
                         action='store_true',
                         help='denotes that the path data does not fit in memory')
+    parser.add_argument('--lr',
+                        type=float,
+                        default=.002,
+                        help='learning rate')
+    parser.add_argument('--l2_reg',
+                        type=float,
+                        default=.001,
+                        help='l2 regularization coefficent')
+    parser.add_argument('--gamma',
+                        type=float,
+                        default=1,
+                        help='gamma for weighted pooling')
 
     return parser.parse_args()
 
 
-def load_train_data(song_person, person_song, user_song_all, \
-              song_user_train, user_song_train, neg_samples, e_to_ix, \
+def load_train_data(song_person, person_song, user_song_all,
+              song_user_train, user_song_train, neg_samples, e_to_ix,
               t_to_ix, r_to_ix, train_path_file, limit=10):
     '''
     Constructs paths for training data, writes each formatted interaction to file
@@ -95,10 +107,10 @@ def load_train_data(song_person, person_song, user_song_all, \
         for pos_song in pos_songs:
             if song_to_paths is None:
                 #find paths
-                song_to_paths = find_paths_user_to_songs(user, song_person, person_song, \
+                song_to_paths = find_paths_user_to_songs(user, song_person, person_song,
                                                               song_user_train, user_song_train, 3, 50)
 
-                song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song, \
+                song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song,
                                                              song_user_train, user_song_train, 5, 6)
 
                 for song in song_to_paths_len5.keys():
@@ -138,8 +150,8 @@ def load_train_data(song_person, person_song, user_song_all, \
     return
 
 
-def load_test_data(song_person, person_song, user_song_all, \
-              song_user_test, user_song_test, neg_samples, e_to_ix, \
+def load_test_data(song_person, person_song, user_song_all,
+              song_user_test, user_song_test, neg_samples, e_to_ix,
               t_to_ix, r_to_ix, test_path_file, len_3_sample, len_5_sample, limit=10):
     '''
     Constructs paths for test data, for each combo of a pos paths and 100 neg paths
@@ -159,10 +171,10 @@ def load_test_data(song_person, person_song, user_song_all, \
             interactions = []
             if song_to_paths is None:
                 #find paths, **Question: should we be using song_user_test or song_user here???**
-                song_to_paths = find_paths_user_to_songs(user, song_person, person_song, \
+                song_to_paths = find_paths_user_to_songs(user, song_person, person_song,
                                                               song_user_test, user_song_test, 3, len_3_sample)
 
-                song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song, \
+                song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song,
                                                              song_user_test, user_song_test, 5, len_5_sample)
 
                 for song in song_to_paths_len5.keys():
@@ -259,7 +271,7 @@ def main():
     t_to_ix, r_to_ix, e_to_ix = load_string_to_ix_dicts()
     song_person, person_song, song_user, user_song = load_rel_ix_dicts()
 
-    model = KPRN(consts.ENTITY_EMB_DIM, consts.TYPE_EMB_DIM, consts.REL_EMB_DIM, consts.HIDDEN_DIM, \
+    model = KPRN(consts.ENTITY_EMB_DIM, consts.TYPE_EMB_DIM, consts.REL_EMB_DIM, consts.HIDDEN_DIM,
                  len(e_to_ix), len(t_to_ix), len(r_to_ix), consts.TARGET_SIZE)
 
     data_ix_path = 'data/' + consts.SONG_IX_DATA_DIR
@@ -275,12 +287,12 @@ def main():
             with open(data_ix_path + 'dense_train_ix_song_user.dict', 'rb') as handle:
                 song_user_train = pickle.load(handle)
 
-            load_train_data(song_person, person_song, user_song, song_user_train,\
-                            user_song_train, consts.NEG_SAMPLES_TRAIN, e_to_ix, \
+            load_train_data(song_person, person_song, user_song, song_user_train,
+                            user_song_train, consts.NEG_SAMPLES_TRAIN, e_to_ix,
                             t_to_ix, r_to_ix, args.train_path_file, limit=args.train_inter_limit)
 
-        model = train(model, args.train_path_file, args.batch_size, args.epochs, \
-                     model_path, args.load_checkpoint, args.not_in_memory)
+        model = train(model, args.train_path_file, args.batch_size, args.epochs, model_path,
+                      args.load_checkpoint, args.not_in_memory, args.lr, args.l2_reg, args.gamma)
 
     if args.eval:
         print("Evaluation Starting")
