@@ -75,7 +75,15 @@ def parse_args():
     parser.add_argument('--lr',
                         type=float,
                         default=.002,
-                        help='denotes that the path data does not fit in memory')
+                        help='learning rate')
+    parser.add_argument('--l2_reg',
+                        type=float,
+                        default=.001,
+                        help='l2 regularization coefficent')
+    parser.add_argument('--gamma',
+                        type=float,
+                        default=1,
+                        help='gamma for weighted pooling')
 
     return parser.parse_args()
 
@@ -282,8 +290,8 @@ def main():
                             user_song_train, consts.NEG_SAMPLES_TRAIN, e_to_ix,
                             t_to_ix, r_to_ix, args.train_path_file, limit=args.train_inter_limit)
 
-        model = train(model, args.train_path_file, args.batch_size, args.epochs,
-                     model_path, args.load_checkpoint, args.not_in_memory, args.lr)
+        model = train(model, args.train_path_file, args.batch_size, args.epochs, model_path,
+                      args.load_checkpoint, args.not_in_memory, args.lr, args.l2_reg, args.gamma)
 
     if args.eval:
         print("Evaluation Starting")
