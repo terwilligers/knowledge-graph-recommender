@@ -17,7 +17,7 @@ class KPRN(nn.Module):
         # with dimensionality hidden_dim.
         self.lstm = nn.LSTM(e_emb_dim + t_emb_dim + r_emb_dim, hidden_dim)
 
-        # The linear layer that maps from hidden state space to to tags
+        # The linear layer that maps from hidden state space to tag
         self.linear1 = nn.Linear(hidden_dim, hidden_dim)
         self.linear2 = nn.Linear(hidden_dim, tagset_size)
 

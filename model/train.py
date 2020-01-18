@@ -12,19 +12,35 @@ from model import KPRN
 from tqdm import tqdm
 from statistics import mean
 
+
 class TrainInteractionData(Dataset):
-    def __init__(self, train_path_file):
+    '''
+    Dataset that can either store all interaction data in memory or load it line
+    by line when needed
+    '''
+    def __init__(self, train_path_file, in_memory=True):
+        self.in_memory = in_memory
         self.file = 'data/path_data/' + train_path_file
         self.num_interactions = 0
-        with open(self.file, "r") as f:
-            for line in f:
-                self.num_interactions += 1
+        self.interactions = []
+        if in_memory:
+            with open(self.file, "r") as f:
+                for line in f:
+                    self.interactions.append(eval(line.rstrip("\n")))
+            self.num_interactions = len(self.interactions)
+        else:
+            with open(self.file, "r") as f:
+                for line in f:
+                    self.num_interactions += 1
 
     def __getitem__(self, idx):
-        #load the specific interaction from the file using python linecache optimizer
-        line = linecache.getline(self.file, idx+1)
-        interaction = eval(line.rstrip("\n"))
-        return interaction
+        #load the specific interaction either from memory or from file line
+        if self.in_memory:
+            return self.interactions[idx]
+        else:
+            line = linecache.getline(self.file, idx+1)
+            return eval(line.rstrip("\n"))
+
 
     def __len__(self):
         return self.num_interactions
@@ -50,7 +66,8 @@ def sort_batch(batch, indexes, lengths):
     return seq_tensor, indexes_tensor, seq_lengths
 
 
-def train(model, train_path_file, batch_size, epochs, model_path, load_checkpoint):
+def train(model, train_path_file, batch_size, epochs, model_path, load_checkpoint,
+         not_in_memory, lr, l2_reg, gamma):
     '''
     -trains and outputs a model using the input data
     -formatted_data is a list of path lists, each of which consists of tuples of
@@ -64,7 +81,7 @@ def train(model, train_path_file, batch_size, epochs, model_path, load_checkpoin
 
     # l2 regularization is tuned from {10−5 , 10−4 , 10−3 , 10−2 }, I think this is weight decay
     # Learning rate is found from {0.001, 0.002, 0.01, 0.02} with grid search
-    optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=.001)
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=l2_reg)
 
     if load_checkpoint:
         checkpoint = torch.load(model_path)
@@ -72,9 +89,8 @@ def train(model, train_path_file, batch_size, epochs, model_path, load_checkpoin
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
     #DataLoader used for batches
-    interaction_data = TrainInteractionData(train_path_file)
-    train_loader = DataLoader(dataset=interaction_data, collate_fn = my_collate, batch_size=batch_size,  \
-                            shuffle=True)
+    interaction_data = TrainInteractionData(train_path_file, in_memory=not not_in_memory)
+    train_loader = DataLoader(dataset=interaction_data, collate_fn = my_collate, batch_size=batch_size, shuffle=True)
 
     for epoch in range(epochs):
         print("Epoch is:", epoch+1)
@@ -111,7 +127,7 @@ def train(model, train_path_file, batch_size, epochs, model_path, load_checkpoin
                 inter_idxs = (s_inter_ids == i).nonzero().squeeze(1)
 
                 #weighted pooled scores for this interaction
-                pooled_score = model.weighted_pooling(tag_scores[inter_idxs])
+                pooled_score = model.weighted_pooling(tag_scores[inter_idxs], gamma=gamma)
 
                 if start:
                     #unsqueeze turns it into 2d tensor, so that we can concatenate along existing dim

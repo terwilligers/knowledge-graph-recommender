@@ -5,17 +5,15 @@ sys.path.append(path.dirname(path.dirname(path.abspath('./constants'))))
 import pickle
 import random
 import constants.consts as consts
-from tqdm import tqdm
 from collections import defaultdict
-from collections import deque
-from datetime import datetime
+import copy
 
 
 class PathState:
     def __init__(self, path, length, entities):
+        self.path = path    # array of [entity, entity type, relation to next] triplets
         self.length = length
-        self.path = path
-        self.entities = entities
+        self.entities = entities    # set to keep track of the entities alr in the path to avoid cycles
 
 def get_random_index(nums, max_length):
     index_list = list(range(max_length))
@@ -23,23 +21,18 @@ def get_random_index(nums, max_length):
     return index_list[:nums]
 
 
-def find_paths_user_to_songs(start_user, song_person, person_song, song_user, user_song, max_length, samples):
+def find_paths_user_to_songs(start_user, song_person, person_song, song_user, user_song, max_length, sample_nums):
     '''
     Finds sampled paths of max depth from a user to a sampling of songs
     '''
-    #start_time=datetime.now()
     song_to_paths = defaultdict(list)
-
-    paths = []
-    sample_nums = samples
-
     stack = []
     start = PathState([[start_user, consts.USER_TYPE, consts.END_REL]], 0, {start_user})
     stack.append(start)
     while len(stack) > 0:
         front = stack.pop()
         entity, type = front.path[-1][0], front.path[-1][1]
-        #add path to song to user_path dicts, just want paths of max_length rn since either length 3 or 5
+        #add path to song_to_user_paths dict, just want paths of max_length rn since either length 3 or 5
         if type == consts.SONG_TYPE and front.length == max_length:
             song_to_paths[entity].append(front.path)
 
@@ -52,7 +45,7 @@ def find_paths_user_to_songs(start_user, song_person, person_song, song_user, us
             for index in index_list:
                 song = song_list[index]
                 if song not in front.entities:
-                    new_path = front.path[:]
+                    new_path = copy.deepcopy(front.path)
                     new_path[-1][2] = consts.USER_SONG_REL
                     new_path.append([song, consts.SONG_TYPE, consts.END_REL])
                     new_state = PathState(new_path, front.length + 1, front.entities|{song})
@@ -65,7 +58,7 @@ def find_paths_user_to_songs(start_user, song_person, person_song, song_user, us
                 for index in index_list:
                     user = user_list[index]
                     if user not in front.entities:
-                        new_path = front.path[:]
+                        new_path = copy.deepcopy(front.path)
                         new_path[-1][2] = consts.SONG_USER_REL
                         new_path.append([user, consts.USER_TYPE, consts.END_REL])
                         new_state = PathState(new_path, front.length + 1, front.entities|{user})
@@ -76,7 +69,7 @@ def find_paths_user_to_songs(start_user, song_person, person_song, song_user, us
                 for index in index_list:
                     person = person_list[index]
                     if person not in front.entities:
-                        new_path = front.path[:]
+                        new_path = copy.deepcopy(front.path)
                         new_path[-1][2] = consts.SONG_PERSON_REL
                         new_path.append([person, consts.PERSON_TYPE, consts.END_REL])
                         new_state = PathState(new_path, front.length + 1, front.entities|{person})
@@ -88,31 +81,29 @@ def find_paths_user_to_songs(start_user, song_person, person_song, song_user, us
             for index in index_list:
                 song = song_list[index]
                 if song not in front.entities:
-                    new_path = front.path[:]
+                    new_path = copy.deepcopy(front.path)
                     new_path[-1][2] = consts.PERSON_SONG_REL
                     new_path.append([song, consts.SONG_TYPE, consts.END_REL])
                     new_state = PathState(new_path, front.length + 1, front.entities|{song})
                     stack.append(new_state)
 
-    #print("one user took", datetime.now()-start_time)
-
     return song_to_paths
 
 
 def main():
-    with open("song_data_vocab/song_person_ix.dict", 'rb') as handle:
+    with open("song_data_ix/dense_ix_song_person.dict", 'rb') as handle:
         song_person = pickle.load(handle)
 
-    with open("song_data_vocab/person_song_ix.dict", 'rb') as handle:
+    with open("song_data_ix/dense_ix_person_song.dict", 'rb') as handle:
         person_song = pickle.load(handle)
 
-    with open("song_data_vocab/song_user_ix.dict", 'rb') as handle:
+    with open("song_data_ix/dense_ix_song_user.dict", 'rb') as handle:
         song_user = pickle.load(handle)
 
-    with open("song_data_vocab/user_song_ix.dict", 'rb') as handle:
+    with open("song_data_ix/dense_ix_user_song.dict", 'rb') as handle:
         user_song = pickle.load(handle)
 
-    print(find_paths_user_to_songs(225331, song_person, person_song, song_user, user_song, 3, 30))
+    print(find_paths_user_to_songs(224218, song_person, person_song, song_user, user_song, 3, 1))
 
 
 if __name__ == "__main__":
