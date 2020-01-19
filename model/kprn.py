@@ -5,7 +5,7 @@ import torch.nn.functional as F
 class KPRN(nn.Module):
 
     def __init__(self, e_emb_dim, t_emb_dim, r_emb_dim, hidden_dim, e_vocab_size,
-                 t_vocab_size, r_vocab_size, tagset_size):
+                 t_vocab_size, r_vocab_size, tagset_size, no_rel):
         super(KPRN, self).__init__()
         self.hidden_dim = hidden_dim
 
@@ -15,13 +15,16 @@ class KPRN(nn.Module):
 
         # The LSTM takes word embeddings as inputs, and outputs hidden states
         # with dimensionality hidden_dim.
-        self.lstm = nn.LSTM(e_emb_dim + t_emb_dim + r_emb_dim, hidden_dim)
+        if no_rel:
+            self.lstm = nn.LSTM(e_emb_dim + t_emb_dim, hidden_dim)
+        else:
+            self.lstm = nn.LSTM(e_emb_dim + t_emb_dim + r_emb_dim, hidden_dim)
 
         # The linear layer that maps from hidden state space to tag
         self.linear1 = nn.Linear(hidden_dim, hidden_dim)
         self.linear2 = nn.Linear(hidden_dim, tagset_size)
 
-    def forward(self, paths, path_lengths):
+    def forward(self, paths, path_lengths, no_rel):
         #transpose, so entities 1st row, types 2nd row, and relations 3nd (these are dim 1 and 2 since batch is 0)
         #this could just be the input if we want
         t_paths = torch.transpose(paths, 1, 2)
@@ -30,8 +33,11 @@ class KPRN(nn.Module):
         #right now we do fetch embedding for padding tokens, but that these aren't used
         entity_embed = self.entity_embeddings(t_paths[:,0,:])
         type_embed = self.type_embeddings(t_paths[:,1,:])
-        rel_embed = self.rel_embeddings(t_paths[:,2,:])
-        triplet_embed = torch.cat((entity_embed, type_embed, rel_embed), 2) #concatenates lengthwise
+        if no_rel:
+            triplet_embed = torch.cat((entity_embed, type_embed), 2)  # concatenates lengthwise
+        else:
+            rel_embed = self.rel_embeddings(t_paths[:,2,:])
+            triplet_embed = torch.cat((entity_embed, type_embed, rel_embed), 2) #concatenates lengthwise
 
         #we need dimensions to be input size x batch_size x embedding dim, so transpose first 2 dim
         batch_sec_embed = torch.transpose(triplet_embed, 0 , 1)
