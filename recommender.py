@@ -365,7 +365,7 @@ def main():
         with open(file_path, 'r') as file:
             for line in tqdm(file, total=get_num_lines(file_path)):
                 test_interactions = eval(line.rstrip("\n"))
-                prediction_scores = predict(model, test_interactions, args.batch_size, device)
+                prediction_scores = predict(model, test_interactions, args.batch_size, device, args.no_rel)
                 target_scores = [x[1] for x in test_interactions]
 
                 #merge prediction scores and target scores into tuples, and rank
