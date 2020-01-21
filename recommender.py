@@ -85,6 +85,10 @@ def parse_args():
                         type=float,
                         default=1,
                         help='gamma for weighted pooling')
+    parser.add_argument('--no_rel',
+                        default=False,
+                        action='store_true',
+                        help='Run the model without relation if True')
 
     return parser.parse_args()
 
@@ -304,7 +308,7 @@ def main():
     song_person, person_song, song_user, user_song = load_rel_ix_dicts()
 
     model = KPRN(consts.ENTITY_EMB_DIM, consts.TYPE_EMB_DIM, consts.REL_EMB_DIM, consts.HIDDEN_DIM,
-                 len(e_to_ix), len(t_to_ix), len(r_to_ix), consts.TAG_SIZE)
+                 len(e_to_ix), len(t_to_ix), len(r_to_ix), consts.TAG_SIZE, args.no_rel)
 
     data_ix_path = 'data/' + consts.SONG_IX_DATA_DIR
 
@@ -324,7 +328,7 @@ def main():
                             t_to_ix, r_to_ix, args.train_path_file, limit=args.train_user_limit)
 
         model = train(model, args.train_path_file, args.batch_size, args.epochs, model_path,
-                      args.load_checkpoint, args.not_in_memory, args.lr, args.l2_reg, args.gamma)
+                      args.load_checkpoint, args.not_in_memory, args.lr, args.l2_reg, args.gamma, args.no_rel)
 
     if args.eval:
         print("Evaluation Starting")

@@ -67,7 +67,7 @@ def sort_batch(batch, indexes, lengths):
 
 
 def train(model, train_path_file, batch_size, epochs, model_path, load_checkpoint,
-         not_in_memory, lr, l2_reg, gamma):
+         not_in_memory, lr, l2_reg, gamma, no_rel):
     '''
     -trains and outputs a model using the input data
     -formatted_data is a list of path lists, each of which consists of tuples of
@@ -118,7 +118,7 @@ def train(model, train_path_file, batch_size, epochs, model_path, load_checkpoin
             model.zero_grad()
 
             #Run the forward pass.
-            tag_scores = model(s_path_batch.to(device), s_lengths.to(device))
+            tag_scores = model(s_path_batch.to(device), s_lengths.to(device), no_rel)
 
             #Get weighted pooling of scores over interaction id groups
             start = True
