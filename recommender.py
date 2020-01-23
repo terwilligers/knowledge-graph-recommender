@@ -3,6 +3,12 @@ import torch
 import argparse
 import random
 import mmap
+from tqdm import tqdm
+from statistics import mean
+from collections import defaultdict
+from os import mkdir
+import pandas as pd
+import numpy as np
 
 import constants.consts as consts
 from model import KPRN, train, predict
@@ -10,10 +16,6 @@ from data.format import format_paths
 from data.path_extraction import find_paths_user_to_songs
 from eval import hit_at_k, ndcg_at_k
 
-from tqdm import tqdm
-from statistics import mean
-from collections import defaultdict
-from os import mkdir
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -67,7 +69,7 @@ def parse_args():
                         help='number of connections to sample at each layer when finding length 3 paths')
     parser.add_argument('--test_len_5_sample',
                         type=int,
-                        default=11,
+                        default=10,
                         help='number of connections to sample at each layer when finding length 5 paths')
     parser.add_argument('--not_in_memory',
                         default=False,
@@ -89,6 +91,10 @@ def parse_args():
                         default=False,
                         action='store_true',
                         help='Run the model without relation if True')
+    parser.add_argument('--np_baseline',
+                        default=False,
+                        action='store_true',
+                        help='Run the model with the number of path baseline if True')
 
     return parser.parse_args()
 
@@ -135,7 +141,11 @@ def load_train_data(song_person, person_song, user_song_all,
                 all_pos_songs = set(user_song_all[user])
                 songs_with_paths = set(song_to_paths.keys())
                 neg_songs_with_paths = list(songs_with_paths.difference(all_pos_songs))
-                random.shuffle(neg_songs_with_paths)
+
+                #neg_songs_with_paths.sort(key=lambda x: len(song_to_paths[x]), reverse=True)
+                #top_neg_songs=neg_songs_with_paths[:neg_samples*len(pos_songs)]
+                top_neg_songs = neg_songs_with_paths
+                random.shuffle(top_neg_songs)
 
             #add paths for positive interaction
             pos_paths = song_to_paths[pos_song]
@@ -144,14 +154,15 @@ def load_train_data(song_person, person_song, user_song_all,
                 path_file.write(repr(interaction) + "\n")
             else:
                 pos_paths_not_found += 1
+                continue
 
             #add negative interactions that have paths (4 for train)
             for i in range(neg_samples):
                 #check if not enough neg paths
-                if cur_index >= len(neg_songs_with_paths):
+                if cur_index >= len(top_neg_songs):
                     print("not enough neg paths")
                     break
-                neg_song = neg_songs_with_paths[cur_index]
+                neg_song = top_neg_songs[cur_index]
                 neg_paths = song_to_paths[neg_song]
                 interaction = (format_paths(neg_paths, e_to_ix, t_to_ix, r_to_ix), 0)
                 path_file.write(repr(interaction) + "\n")
@@ -166,7 +177,7 @@ def load_train_data(song_person, person_song, user_song_all,
 
 
 def load_test_data(song_person, person_song, user_song_all,
-              song_user_test, user_song_test, neg_samples, e_to_ix,
+              song_user_all, user_song_test, neg_samples, e_to_ix,
               t_to_ix, r_to_ix, test_path_file, len_3_sample, len_5_sample, limit=10):
     '''
     Constructs paths for test data, for each combo of a pos paths and 100 neg paths
@@ -178,6 +189,8 @@ def load_test_data(song_person, person_song, user_song_all,
 
     pos_paths_not_found = 0
     total_pos_interactions = 0
+    num_neg_interactions = 0
+    avg_num_pos_paths, avg_num_neg_paths = 0, 0
     for user,pos_songs in tqdm(list(user_song_test.items())[:limit]):
         total_pos_interactions += len(pos_songs)
         song_to_paths = None
@@ -186,13 +199,10 @@ def load_test_data(song_person, person_song, user_song_all,
         for pos_song in pos_songs:
             interactions = []
             if song_to_paths is None:
-                #find paths, **Question: should we be using song_user_test or song_user here???**
                 song_to_paths = find_paths_user_to_songs(user, song_person, person_song,
-                                                              song_user_test, user_song_test, 3, len_3_sample)
-
+                                                              song_user_all, user_song_all, 3, len_3_sample)
                 song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song,
-                                                             song_user_test, user_song_test, 5, len_5_sample)
-
+                                                             song_user_all, user_song_all, 5, len_5_sample)
                 for song in song_to_paths_len5.keys():
                     song_to_paths[song].extend(song_to_paths_len5[song])
 
@@ -200,32 +210,48 @@ def load_test_data(song_person, person_song, user_song_all,
                 all_pos_songs = set(user_song_all[user])
                 songs_with_paths = set(song_to_paths.keys())
                 neg_songs_with_paths = list(songs_with_paths.difference(all_pos_songs))
-                random.shuffle(neg_songs_with_paths)
+
+                # neg_songs_with_paths.sort(key=lambda x: len(song_to_paths[x]), reverse=True)
+                # top_neg_songs=neg_songs_with_paths[:neg_samples*len(pos_songs)]
+                top_neg_songs = neg_songs_with_paths
+                random.shuffle(top_neg_songs)
+
 
             #add paths for positive interaction
             pos_paths = song_to_paths[pos_song]
             if len(pos_paths) > 0:
                 interactions.append((format_paths(pos_paths, e_to_ix, t_to_ix, r_to_ix), 1))
+                avg_num_pos_paths += len(pos_paths)
             else:
                 pos_paths_not_found += 1
                 #continue here since we don't test interactions with no pos paths,
                 continue
 
-            #add negative interactions that have paths (4 for train)
+            #add negative interactions that have paths
+            found_all_samples = True
             for i in range(neg_samples):
                 #check if not enough neg paths
-                if cur_index >= len(neg_songs_with_paths):
+                if cur_index >= len(top_neg_songs):
                     print("not enough neg paths, only found:", str(i))
+                    found_all_samples = False
                     break
-                neg_song = neg_songs_with_paths[cur_index]
+                neg_song = top_neg_songs[cur_index]
                 neg_paths = song_to_paths[neg_song]
                 interactions.append((format_paths(neg_paths, e_to_ix, t_to_ix, r_to_ix), 0))
+                avg_num_neg_paths += len(neg_paths)
+                num_neg_interactions += 1
                 cur_index += 1
 
-            path_file.write(repr(interactions) + "\n")
+            if found_all_samples:
+                path_file.write(repr(interactions) + "\n")
+
+    avg_num_neg_paths = avg_num_neg_paths / num_neg_interactions
+    avg_num_pos_paths = avg_num_pos_paths / (total_pos_interactions - pos_paths_not_found)
 
     print("number of pos paths attempted to find:", total_pos_interactions)
     print("number of pos paths not found:", pos_paths_not_found)
+    print("avg num paths per positive interactions:", avg_num_pos_paths)
+    print("avg num paths per negative interactions:", avg_num_neg_paths)
 
     path_file.close()
     return
@@ -330,39 +356,67 @@ def main():
             with open(data_ix_path + 'dense_test_ix_song_user.dict', 'rb') as handle:
                 song_user_test = pickle.load(handle)
 
-            load_test_data(song_person, person_song, user_song, song_user_test, user_song_test,
+            load_test_data(song_person, person_song, user_song, song_user, user_song_test,
                             consts.NEG_SAMPLES_TEST, e_to_ix, t_to_ix, r_to_ix, args.test_path_file,
                            args.test_len_3_sample, args.test_len_5_sample, limit=args.test_user_limit)
 
         #predict scores using model for each combination of one pos and 100 neg interactions
         hit_at_k_scores = defaultdict(list)
         ndcg_at_k_scores = defaultdict(list)
+        if args.np_baseline:
+            num_paths_baseline_hit_at_k = defaultdict(list)
+            num_paths_baseline_ndcg_at_k = defaultdict(list)
         max_k = 15
 
         file_path = 'data/path_data/' + args.test_path_file
         with open(file_path, 'r') as file:
             for line in tqdm(file, total=get_num_lines(file_path)):
                 test_interactions = eval(line.rstrip("\n"))
-                prediction_scores = predict(model, test_interactions, args.batch_size, device)
+                prediction_scores = predict(model, test_interactions, args.batch_size, device, args.no_rel)
                 target_scores = [x[1] for x in test_interactions]
 
                 #merge prediction scores and target scores into tuples, and rank
                 merged = list(zip(prediction_scores, target_scores))
-                random.shuffle(merged)
                 s_merged = sorted(merged, key=lambda x: x[0], reverse=True)
 
                 for k in range(1,max_k+1):
                     hit_at_k_scores[k].append(hit_at_k(s_merged, k))
                     ndcg_at_k_scores[k].append(ndcg_at_k(s_merged, k))
 
+                #Baseline of ranking based on number of paths
+                if args.np_baseline:
+                    s_inters = sorted(test_interactions, key=lambda x: len(x[0]), reverse=True)
+                    for k in range(1,max_k+1):
+                        num_paths_baseline_hit_at_k[k].append(hit_at_k(s_inters, k))
+                        num_paths_baseline_ndcg_at_k[k].append(ndcg_at_k(s_inters, k))
+
+        scores = []
 
         for k in hit_at_k_scores.keys():
             hit_at_ks = hit_at_k_scores[k]
             ndcg_at_ks = ndcg_at_k_scores[k]
             print()
-            print(["Average hit@K for k={0} is {1:.2f}".format(k, mean(hit_at_ks))])
-            print(["Average ndcg@K for k={0} is {1:.2f}".format(k, mean(ndcg_at_ks))])
+            print(["Average hit@K for k={0} is {1:.4f}".format(k, mean(hit_at_ks))])
+            print(["Average ndcg@K for k={0} is {1:.4f}".format(k, mean(ndcg_at_ks))])
+            scores.append([args.model, args.test_path_file, k, mean(hit_at_ks), mean(ndcg_at_ks)])
 
+        if args.np_baseline:
+            for k in hit_at_k_scores.keys():
+                print()
+                print(["Num Paths Baseline hit@K for k={0} is {1:.4f}".format(k, mean(num_paths_baseline_hit_at_k[k]))])
+                print(["Num Paths Baseline ndcg@K for k={0} is {1:.4f}".format(k, mean(num_paths_baseline_ndcg_at_k[k]))])
+                scores.append(['np_baseline', args.test_path_file, k, mean(num_paths_baseline_hit_at_k[k]), mean(num_paths_baseline_ndcg_at_k[k])])
+
+        # saving scores
+        scores_cols = ['model', 'test_file', 'k', 'hit', 'ndcg']
+        scores_df = pd.DataFrame(scores, columns = scores_cols)
+        scores_path = 'model_scores.csv'
+        try:
+            model_scores = pd.read_csv(scores_path)
+        except FileNotFoundError:
+            model_scores = pd.DataFrame(columns=scores_cols)
+        model_scores=model_scores.append(scores_df, ignore_index = True, sort=False)
+        model_scores.to_csv(scores_path,index=False)
 
 
 if __name__ == "__main__":
