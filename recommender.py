@@ -3,6 +3,12 @@ import torch
 import argparse
 import random
 import mmap
+from tqdm import tqdm
+from statistics import mean
+from collections import defaultdict
+from os import mkdir
+import pandas as pd
+import numpy as np
 
 import constants.consts as consts
 from model import KPRN, train, predict
@@ -10,10 +16,6 @@ from data.format import format_paths
 from data.path_extraction import find_paths_user_to_songs
 from eval import hit_at_k, ndcg_at_k
 
-from tqdm import tqdm
-from statistics import mean
-from collections import defaultdict
-from os import mkdir
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -89,6 +91,10 @@ def parse_args():
                         default=False,
                         action='store_true',
                         help='Run the model without relation if True')
+    parser.add_argument('--np_baseline',
+                        default=False,
+                        action='store_true',
+                        help='Run the model with the number of path baseline if True')
 
     return parser.parse_args()
 
@@ -357,8 +363,9 @@ def main():
         #predict scores using model for each combination of one pos and 100 neg interactions
         hit_at_k_scores = defaultdict(list)
         ndcg_at_k_scores = defaultdict(list)
-        num_paths_baseline_hit_at_k = defaultdict(list)
-        num_paths_baseline_ndcg_at_k = defaultdict(list)
+        if args.np_baseline:
+            num_paths_baseline_hit_at_k = defaultdict(list)
+            num_paths_baseline_ndcg_at_k = defaultdict(list)
         max_k = 15
 
         file_path = 'data/path_data/' + args.test_path_file
@@ -377,21 +384,40 @@ def main():
                     ndcg_at_k_scores[k].append(ndcg_at_k(s_merged, k))
 
                 #Baseline of ranking based on number of paths
-                s_inters = sorted(test_interactions, key=lambda x: len(x[0]), reverse=True)
-                for k in range(1,max_k+1):
-                    num_paths_baseline_hit_at_k[k].append(hit_at_k(s_inters, k))
-                    num_paths_baseline_ndcg_at_k[k].append(ndcg_at_k(s_inters, k))
+                if args.np_baseline:
+                    s_inters = sorted(test_interactions, key=lambda x: len(x[0]), reverse=True)
+                    for k in range(1,max_k+1):
+                        num_paths_baseline_hit_at_k[k].append(hit_at_k(s_inters, k))
+                        num_paths_baseline_ndcg_at_k[k].append(ndcg_at_k(s_inters, k))
 
+        scores = []
 
         for k in hit_at_k_scores.keys():
             hit_at_ks = hit_at_k_scores[k]
             ndcg_at_ks = ndcg_at_k_scores[k]
             print()
-            print(["Average hit@K for k={0} is {1:.2f}".format(k, mean(hit_at_ks))])
-            print(["Average ndcg@K for k={0} is {1:.2f}".format(k, mean(ndcg_at_ks))])
-            print(["Num Paths Baseline hit@K for k={0} is {1:.2f}".format(k, mean(num_paths_baseline_hit_at_k[k]))])
-            print(["Num Paths Baseline ndcg@K for k={0} is {1:.2f}".format(k, mean(num_paths_baseline_ndcg_at_k[k]))])
+            print(["Average hit@K for k={0} is {1:.4f}".format(k, mean(hit_at_ks))])
+            print(["Average ndcg@K for k={0} is {1:.4f}".format(k, mean(ndcg_at_ks))])
+            scores.append([args.model, args.test_path_file, k, mean(hit_at_ks), mean(ndcg_at_ks)])
 
+        if args.np_baseline:
+            for k in hit_at_k_scores.keys():
+                print()
+                print(["Num Paths Baseline hit@K for k={0} is {1:.4f}".format(k, mean(num_paths_baseline_hit_at_k[k]))])
+                print(["Num Paths Baseline ndcg@K for k={0} is {1:.4f}".format(k, mean(num_paths_baseline_ndcg_at_k[k]))])
+                scores.append(['np_baseline', args.test_path_file, k, mean(num_paths_baseline_hit_at_k[k]), mean(num_paths_baseline_ndcg_at_k[k])])
+
+        # saving scores
+        scores_cols = ['model', 'test_file', 'k', 'hit', 'ndcg']
+        scores_df = pd.DataFrame(scores, columns = scores_cols)
+        scores_path = 'model_scores.csv'
+        print(scores_df)
+        try:
+            model_scores = pd.read_csv(scores_path)
+        except FileNotFoundError:
+            model_scores = pd.DataFrame(columns=scores_cols)
+        model_scores=model_scores.append(scores_df, ignore_index = True, sort=False)
+        model_scores.to_csv(scores_path,index=False)
 
 
 if __name__ == "__main__":
