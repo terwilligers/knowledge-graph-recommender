@@ -411,7 +411,6 @@ def main():
         scores_cols = ['model', 'test_file', 'k', 'hit', 'ndcg']
         scores_df = pd.DataFrame(scores, columns = scores_cols)
         scores_path = 'model_scores.csv'
-        print(scores_df)
         try:
             model_scores = pd.read_csv(scores_path)
         except FileNotFoundError:
