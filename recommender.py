@@ -31,6 +31,10 @@ def parse_args():
                         default=False,
                         action='store_true',
                         help='whether to find paths (otherwise load from disk)')
+    parser.add_argument('--subnetwork',
+                        default='dense',
+                        choices=['dense', 'rs', 'sparse', 'full'],
+                        help='The type of subnetwork to load data from')
     parser.add_argument('--model',
                         type=str,
                         default='model.pt',
@@ -39,22 +43,14 @@ def parse_args():
                         default=False,
                         action='store_true',
                         help='whether to load the current model state before training ')
-    parser.add_argument('--train_path_file',
+    parser.add_argument('--kg_path_file',
                         type=str,
-                        default='train_interactions.txt',
-                        help='file name to store/load train paths')
-    parser.add_argument('--test_path_file',
-                        type=str,
-                        default='test_interactions.txt',
-                        help='file name to store/load test path dictionary')
-    parser.add_argument('--train_user_limit',
+                        default='interactions.txt',
+                        help='file name to store/load train/test paths')
+    parser.add_argument('--user_limit',
                         type=int,
                         default=10,
-                        help='max number of pos train interactions to find paths for')
-    parser.add_argument('--test_user_limit',
-                        type=int,
-                        default=10,
-                        help='max number of pos test interactions to find paths for')
+                        help='max number of users to find paths for')
     parser.add_argument('-e','--epochs',
                         type=int,
                         default=5,
@@ -257,35 +253,35 @@ def load_test_data(song_person, person_song, user_song_all,
     return
 
 
-def load_string_to_ix_dicts():
+def load_string_to_ix_dicts(network_type):
     '''
     Loads the dictionaries mapping entity, relation, and type to id
     '''
-    data_path = 'data/' + consts.SONG_IX_MAPPING_DIR
+    data_path = 'data/' + consts.SONG_IX_MAPPING_DIR + network_type
 
-    with open(data_path + 'dense_type_to_ix.dict', 'rb') as handle:
+    with open(data_path + '_type_to_ix.dict', 'rb') as handle:
         type_to_ix = pickle.load(handle)
-    with open(data_path + 'dense_relation_to_ix.dict', 'rb') as handle:
+    with open(data_path + '_relation_to_ix.dict', 'rb') as handle:
         relation_to_ix = pickle.load(handle)
-    with open(data_path + 'dense_entity_to_ix.dict', 'rb') as handle:
+    with open(data_path + '_entity_to_ix.dict', 'rb') as handle:
         entity_to_ix = pickle.load(handle)
 
     return type_to_ix, relation_to_ix, entity_to_ix
 
 
-def load_rel_ix_dicts():
+def load_rel_ix_dicts(network_type):
     '''
     Loads the relation dictionaries
     '''
-    data_path = 'data/' + consts.SONG_IX_DATA_DIR
+    data_path = 'data/' + consts.SONG_IX_DATA_DIR + network_type
 
-    with open(data_path + 'dense_ix_song_person.dict', 'rb') as handle:
+    with open(data_path + '_ix_song_person.dict', 'rb') as handle:
         song_person = pickle.load(handle)
-    with open(data_path + 'dense_ix_person_song.dict', 'rb') as handle:
+    with open(data_path + '_ix_person_song.dict', 'rb') as handle:
         person_song = pickle.load(handle)
-    with open(data_path + 'dense_ix_song_user.dict', 'rb') as handle:
+    with open(data_path + '_ix_song_user.dict', 'rb') as handle:
         song_user = pickle.load(handle)
-    with open(data_path + 'dense_ix_user_song.dict', 'rb') as handle:
+    with open(data_path + '_ix_user_song.dict', 'rb') as handle:
         user_song = pickle.load(handle)
 
     return song_person, person_song, song_user, user_song
@@ -310,13 +306,13 @@ def main():
     args = parse_args()
     model_path = "model/" + args.model
 
-    t_to_ix, r_to_ix, e_to_ix = load_string_to_ix_dicts()
-    song_person, person_song, song_user, user_song = load_rel_ix_dicts()
+    t_to_ix, r_to_ix, e_to_ix = load_string_to_ix_dicts(args.subnetwork)
+    song_person, person_song, song_user, user_song = load_rel_ix_dicts(args.subnetwork)
 
     model = KPRN(consts.ENTITY_EMB_DIM, consts.TYPE_EMB_DIM, consts.REL_EMB_DIM, consts.HIDDEN_DIM,
                  len(e_to_ix), len(t_to_ix), len(r_to_ix), consts.TAG_SIZE, args.no_rel)
 
-    data_ix_path = 'data/' + consts.SONG_IX_DATA_DIR
+    data_ix_path = 'data/' + consts.SONG_IX_DATA_DIR + args.subnetwork
 
     if args.train:
         print("Training Starting")
@@ -324,16 +320,16 @@ def main():
         if args.find_paths:
             print("Finding paths")
 
-            with open(data_ix_path + 'dense_train_ix_user_song.dict', 'rb') as handle:
+            with open(data_ix_path + '_train_ix_user_song.dict', 'rb') as handle:
                 user_song_train = pickle.load(handle)
-            with open(data_ix_path + 'dense_train_ix_song_user.dict', 'rb') as handle:
+            with open(data_ix_path + '_train_ix_song_user.dict', 'rb') as handle:
                 song_user_train = pickle.load(handle)
 
             load_train_data(song_person, person_song, user_song, song_user_train,
                             user_song_train, consts.NEG_SAMPLES_TRAIN, e_to_ix,
-                            t_to_ix, r_to_ix, args.train_path_file, limit=args.train_user_limit)
+                            t_to_ix, r_to_ix, args.kg_path_file, limit=args.user_limit)
 
-        model = train(model, args.train_path_file, args.batch_size, args.epochs, model_path,
+        model = train(model, args.kg_path_file, args.batch_size, args.epochs, model_path,
                       args.load_checkpoint, args.not_in_memory, args.lr, args.l2_reg, args.gamma, args.no_rel)
 
     if args.eval:
@@ -351,14 +347,14 @@ def main():
         if args.find_paths:
             print("Finding Paths")
 
-            with open(data_ix_path + 'dense_test_ix_user_song.dict', 'rb') as handle:
+            with open(data_ix_path + '_test_ix_user_song.dict', 'rb') as handle:
                 user_song_test = pickle.load(handle)
-            with open(data_ix_path + 'dense_test_ix_song_user.dict', 'rb') as handle:
+            with open(data_ix_path + '_test_ix_song_user.dict', 'rb') as handle:
                 song_user_test = pickle.load(handle)
 
             load_test_data(song_person, person_song, user_song, song_user, user_song_test,
-                            consts.NEG_SAMPLES_TEST, e_to_ix, t_to_ix, r_to_ix, args.test_path_file,
-                           args.test_len_3_sample, args.test_len_5_sample, limit=args.test_user_limit)
+                            consts.NEG_SAMPLES_TEST, e_to_ix, t_to_ix, r_to_ix, args.kg_path_file,
+                           args.test_len_3_sample, args.test_len_5_sample, limit=args.user_limit)
 
         #predict scores using model for each combination of one pos and 100 neg interactions
         hit_at_k_scores = defaultdict(list)
@@ -368,7 +364,7 @@ def main():
             num_paths_baseline_ndcg_at_k = defaultdict(list)
         max_k = 15
 
-        file_path = 'data/path_data/' + args.test_path_file
+        file_path = 'data/path_data/' + args.kg_path_file
         with open(file_path, 'r') as file:
             for line in tqdm(file, total=get_num_lines(file_path)):
                 test_interactions = eval(line.rstrip("\n"))
@@ -398,14 +394,14 @@ def main():
             print()
             print(["Average hit@K for k={0} is {1:.4f}".format(k, mean(hit_at_ks))])
             print(["Average ndcg@K for k={0} is {1:.4f}".format(k, mean(ndcg_at_ks))])
-            scores.append([args.model, args.test_path_file, k, mean(hit_at_ks), mean(ndcg_at_ks)])
+            scores.append([args.model, args.kg_path_file, k, mean(hit_at_ks), mean(ndcg_at_ks)])
 
         if args.np_baseline:
             for k in hit_at_k_scores.keys():
                 print()
                 print(["Num Paths Baseline hit@K for k={0} is {1:.4f}".format(k, mean(num_paths_baseline_hit_at_k[k]))])
                 print(["Num Paths Baseline ndcg@K for k={0} is {1:.4f}".format(k, mean(num_paths_baseline_ndcg_at_k[k]))])
-                scores.append(['np_baseline', args.test_path_file, k, mean(num_paths_baseline_hit_at_k[k]), mean(num_paths_baseline_ndcg_at_k[k])])
+                scores.append(['np_baseline', args.kg_path_file, k, mean(num_paths_baseline_hit_at_k[k]), mean(num_paths_baseline_ndcg_at_k[k])])
 
         # saving scores
         scores_cols = ['model', 'test_file', 'k', 'hit', 'ndcg']
