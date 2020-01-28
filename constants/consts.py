@@ -39,3 +39,6 @@ TAG_SIZE = 2 #since 0 or 1
 MAX_PATH_LEN = 6
 NEG_SAMPLES_TRAIN = 4
 NEG_SAMPLES_TEST = 100
+
+LEN_3_SAMPLE = 50 #branching factor for paths
+LEN_5_SAMPLE= 6 #change to 6 when training
