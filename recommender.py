@@ -17,6 +17,8 @@ from data.path_extraction import find_paths_user_to_songs
 from eval import hit_at_k, ndcg_at_k
 
 
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--train',
@@ -83,6 +85,10 @@ def parse_args():
                         default=False,
                         action='store_true',
                         help='Run the model with the number of path baseline if True')
+    parser.add_argument('--samples',
+                        type=int,
+                        default=3,
+                        help='number of paths to sample for each interaction')
 
     return parser.parse_args()
 
@@ -148,6 +154,8 @@ def load_data(song_person, person_song, user_song_all, song_user_all,
             #add paths for positive interaction
             pos_paths = song_to_paths[pos_song]
             if len(pos_paths) > 0:
+
+                pos_paths = sample_paths(pos_paths, samples) #comment out if not sampling
                 interaction = (format_paths(pos_paths, e_to_ix, t_to_ix, r_to_ix), 1)
                 if version == "train":
                     path_file.write(repr(interaction) + "\n")
@@ -169,11 +177,13 @@ def load_data(song_person, person_song, user_song_all, song_user_all,
                 neg_song = top_neg_songs[cur_index]
                 neg_paths = song_to_paths[neg_song]
 
+                neg_paths = sample_paths(neg_paths, samples) #comment out if not sampling
                 interaction = (format_paths(neg_paths, e_to_ix, t_to_ix, r_to_ix), 0)
                 if version == "train":
                     path_file.write(repr(interaction) + "\n")
                 else:
                     interactions.append(interaction)
+
                 avg_num_neg_paths += len(neg_paths)
                 num_neg_interactions += 1
                 cur_index += 1
