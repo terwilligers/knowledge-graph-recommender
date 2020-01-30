@@ -17,8 +17,6 @@ from data.path_extraction import find_paths_user_to_songs
 from eval import hit_at_k, ndcg_at_k
 
 
-
-
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--train',
@@ -87,8 +85,8 @@ def parse_args():
                         help='Run the model with the number of path baseline if True')
     parser.add_argument('--samples',
                         type=int,
-                        default=3,
-                        help='number of paths to sample for each interaction')
+                        default=-1,
+                        help='number of paths to sample for each interaction (-1 means include all paths)')
 
     return parser.parse_args()
 
@@ -106,10 +104,17 @@ def sample_paths(paths, samples):
     indices = index_list[:samples]
     return [paths[i] for i in indices]
 
+def get_num_lines(file_path):
+    fp = open(file_path, "r+")
+    buf = mmap.mmap(fp.fileno(), 0)
+    lines = 0
+    while buf.readline():
+        lines += 1
+    return lines
 
 def load_data(song_person, person_song, user_song_all, song_user_all,
               song_user_split, user_song_split, neg_samples, e_to_ix, t_to_ix,
-              r_to_ix, kg_path_file, len_3_sample, len_5_sample, limit=10, version="train", samples=1):
+              r_to_ix, kg_path_file, LEN_3_BRANCH, LEN_5_BRANCH, limit=10, version="train", samples=-1):
     '''
     Constructs paths for train/test data,
 
@@ -136,14 +141,14 @@ def load_data(song_person, person_song, user_song_all, song_user_all,
             if song_to_paths is None:
                 if version == "train":
                     song_to_paths = find_paths_user_to_songs(user, song_person, person_song,
-                                                                  song_user_split, user_song_split, 3, len_3_sample)
+                                                                  song_user_split, user_song_split, 3, LEN_3_BRANCH)
                     song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song,
-                                                                 song_user_split, user_song_split, 5, len_5_sample)
+                                                                 song_user_split, user_song_split, 5, LEN_5_BRANCH)
                 else: #for testing we use entire song_user and user_song dictionaries
                     song_to_paths = find_paths_user_to_songs(user, song_person, person_song,
-                                                                  song_user_all, user_song_all, 3, len_3_sample)
+                                                                  song_user_all, user_song_all, 3, LEN_3_BRANCH)
                     song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song,
-                                                                 song_user_all, user_song_all, 5, len_5_sample)
+                                                                 song_user_all, user_song_all, 5, LEN_5_BRANCH)
                 for song in song_to_paths_len5.keys():
                     song_to_paths[song].extend(song_to_paths_len5[song])
 
@@ -152,16 +157,14 @@ def load_data(song_person, person_song, user_song_all, song_user_all,
                 songs_with_paths = set(song_to_paths.keys())
                 neg_songs_with_paths = list(songs_with_paths.difference(all_pos_songs))
 
-                # neg_songs_with_paths.sort(key=lambda x: len(song_to_paths[x]), reverse=True)
-                # top_neg_songs=neg_songs_with_paths[:neg_samples*len(pos_songs)]
                 top_neg_songs = neg_songs_with_paths
                 random.shuffle(top_neg_songs)
 
             #add paths for positive interaction
             pos_paths = song_to_paths[pos_song]
             if len(pos_paths) > 0:
-
-                pos_paths = sample_paths(pos_paths, samples) #comment out if not sampling
+                if samples != -1:
+                    pos_paths = sample_paths(pos_paths, samples)
                 interaction = (format_paths(pos_paths, e_to_ix, t_to_ix, r_to_ix), 1)
                 if version == "train":
                     path_file.write(repr(interaction) + "\n")
@@ -183,7 +186,8 @@ def load_data(song_person, person_song, user_song_all, song_user_all,
                 neg_song = top_neg_songs[cur_index]
                 neg_paths = song_to_paths[neg_song]
 
-                neg_paths = sample_paths(neg_paths, samples) #comment out if not sampling
+                if samples != -1:
+                    neg_paths = sample_paths(neg_paths, samples)
                 interaction = (format_paths(neg_paths, e_to_ix, t_to_ix, r_to_ix), 0)
                 if version == "train":
                     path_file.write(repr(interaction) + "\n")
@@ -243,15 +247,6 @@ def load_rel_ix_dicts(network_type):
     return song_person, person_song, song_user, user_song
 
 
-def get_num_lines(file_path):
-    fp = open(file_path, "r+")
-    buf = mmap.mmap(fp.fileno(), 0)
-    lines = 0
-    while buf.readline():
-        lines += 1
-    return lines
-
-
 def main():
     '''
     Main function for our graph recommendation project,
@@ -283,8 +278,8 @@ def main():
 
             load_data(song_person, person_song, user_song, song_user,
                       song_user_train, user_song_train, consts.NEG_SAMPLES_TRAIN,
-                      e_to_ix, t_to_ix, r_to_ix, args.kg_path_file, consts.LEN_3_SAMPLE,
-                      consts.LEN_5_SAMPLE, limit=args.user_limit, version="train", samples=args.samples)
+                      e_to_ix, t_to_ix, r_to_ix, args.kg_path_file, consts.LEN_3_BRANCH,
+                      consts.LEN_5_BRANCH_TRAIN, limit=args.user_limit, version="train", samples=args.samples)
 
         model = train(model, args.kg_path_file, args.batch_size, args.epochs, model_path,
                       args.load_checkpoint, args.not_in_memory, args.lr, args.l2_reg, args.gamma, args.no_rel)
@@ -311,8 +306,8 @@ def main():
 
             load_data(song_person, person_song, user_song, song_user,
                       song_user_test, user_song_test, consts.NEG_SAMPLES_TEST,
-                      e_to_ix, t_to_ix, r_to_ix, args.kg_path_file, consts.LEN_3_SAMPLE,
-                      consts.LEN_5_SAMPLE, limit=args.user_limit, version="test", samples=args.samples)
+                      e_to_ix, t_to_ix, r_to_ix, args.kg_path_file, consts.LEN_3_BRANCH,
+                      consts.LEN_5_BRANCH_TEST, limit=args.user_limit, version="test", samples=args.samples)
 
         #predict scores using model for each combination of one pos and 100 neg interactions
         hit_at_k_scores = defaultdict(list)
@@ -339,6 +334,7 @@ def main():
 
                 #Baseline of ranking based on number of paths
                 if args.np_baseline:
+                    random.shuffle(test_interactions)
                     s_inters = sorted(test_interactions, key=lambda x: len(x[0]), reverse=True)
                     for k in range(1,max_k+1):
                         num_paths_baseline_hit_at_k[k].append(hit_at_k(s_inters, k))
