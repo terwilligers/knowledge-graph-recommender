@@ -100,10 +100,16 @@ def create_directory(dir):
     except FileExistsError:
         print("Directory already exists")
 
+def sample_paths(paths, samples):
+    index_list = list(range(len(paths)))
+    random.shuffle(index_list)
+    indices = index_list[:samples]
+    return [paths[i] for i in indices]
+
 
 def load_data(song_person, person_song, user_song_all, song_user_all,
               song_user_split, user_song_split, neg_samples, e_to_ix, t_to_ix,
-              r_to_ix, kg_path_file, len_3_sample, len_5_sample, limit=10, version="train"):
+              r_to_ix, kg_path_file, len_3_sample, len_5_sample, limit=10, version="train", samples=1):
     '''
     Constructs paths for train/test data,
 
@@ -278,7 +284,7 @@ def main():
             load_data(song_person, person_song, user_song, song_user,
                       song_user_train, user_song_train, consts.NEG_SAMPLES_TRAIN,
                       e_to_ix, t_to_ix, r_to_ix, args.kg_path_file, consts.LEN_3_SAMPLE,
-                      consts.LEN_5_SAMPLE, limit=args.user_limit, version="train")
+                      consts.LEN_5_SAMPLE, limit=args.user_limit, version="train", samples=args.samples)
 
         model = train(model, args.kg_path_file, args.batch_size, args.epochs, model_path,
                       args.load_checkpoint, args.not_in_memory, args.lr, args.l2_reg, args.gamma, args.no_rel)
@@ -306,7 +312,7 @@ def main():
             load_data(song_person, person_song, user_song, song_user,
                       song_user_test, user_song_test, consts.NEG_SAMPLES_TEST,
                       e_to_ix, t_to_ix, r_to_ix, args.kg_path_file, consts.LEN_3_SAMPLE,
-                      consts.LEN_5_SAMPLE, limit=args.user_limit, version="test")
+                      consts.LEN_5_SAMPLE, limit=args.user_limit, version="test", samples=args.samples)
 
         #predict scores using model for each combination of one pos and 100 neg interactions
         hit_at_k_scores = defaultdict(list)
