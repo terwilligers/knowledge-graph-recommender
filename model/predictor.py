@@ -31,7 +31,7 @@ def convert_to_etr(e_to_ix, t_to_ix, r_to_ix, path, length):
         new_path.append([ix_to_e[step[0].item()], ix_to_t[step[1].item()], ix_to_r[step[2].item()]])
     return new_path
 
-def predict(model, formatted_data, batch_size, device, no_rel):
+def predict(model, formatted_data, batch_size, device, no_rel, gamma):
     '''
     -outputs predicted scores for the input test data
     -formatted_data is a list of path lists, each of which consists of tuples of
@@ -73,7 +73,7 @@ def predict(model, formatted_data, batch_size, device, no_rel):
                 inter_idxs = (s_inter_ids == i).nonzero().squeeze(1)
 
                 #weighted pooled scores for this interaction
-                pooled_score = model.weighted_pooling(tag_scores[inter_idxs])
+                pooled_score = model.weighted_pooling(tag_scores[inter_idxs], gamma=gamma)
 
                 if start:
                     #unsqueeze turns it into 2d tensor, so that we can concatenate along existing dim
