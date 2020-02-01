@@ -8,6 +8,7 @@ implementing different sampling strategies.
 import numpy as np
 from math import exp
 import random
+import time
 
 class BPRArgs(object):
 
@@ -38,7 +39,7 @@ class BPR(object):
         self.negative_item_regularization = args.negative_item_regularization
         self.update_negative_item_factors = args.update_negative_item_factors
 
-    def train(self,data,sampler,num_iters):
+    def train(self,data,sampler,num_iters,max_samples=None):
         """train model
         data: user-item matrix as a scipy sparse matrix
               users and items are zero-indexed
@@ -46,11 +47,13 @@ class BPR(object):
         self.init(data)
 
         print 'initial loss = {0}'.format(self.loss())
+        start_time = time.time()
         for it in xrange(num_iters):
-            print 'starting iteration {0}'.format(it)
-            for u,i,j in sampler.generate_samples(self.data):
+            for u,i,j in sampler.generate_samples(self.data, max_samples):
                 self.update_factors(u,i,j)
-            print 'iteration {0}: loss = {1}'.format(it,self.loss())
+            print 'iteration {0}: loss = {1}, time = {2} seconds'.\
+                   format(it,self.loss(),time.time()-start_time)
+            start_time = time.time()
 
     def init(self,data):
         self.data = data
