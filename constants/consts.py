@@ -40,5 +40,6 @@ MAX_PATH_LEN = 6
 NEG_SAMPLES_TRAIN = 4
 NEG_SAMPLES_TEST = 100
 
-LEN_3_SAMPLE = 50 #branching factor for paths
-LEN_5_SAMPLE= 6 #change to 6 when training
+LEN_3_BRANCH = 50 #branching factor for paths
+LEN_5_BRANCH_TRAIN = 6
+LEN_5_BRANCH_TEST= 10
