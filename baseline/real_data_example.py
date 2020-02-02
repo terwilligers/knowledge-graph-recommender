@@ -38,6 +38,10 @@ def parse_args():
                         default=".",
                         help="save the trained model here",
                         type=str)
+    parser.add_argument("--pretrained_dir",
+                        default=".",
+                        help="load the pretrained model here",
+                        type=str)
     parser.add_argument("--without_sampling",
                         action="store_true")
     parser.add_argument("--load_pretrained_model",
@@ -177,8 +181,8 @@ def evaluate(model, k, test_user_song, train_user_song, full_song_user, \
         total = total + 1
 
     print 'Total number of test cases: ', total
-    print 'hit at %d: %.3f' % (k, hit/float(total))
-    print 'ndcg at %d: %.3f' % (k, ndcg/float(total))
+    print 'hit at %d: %.f' % (k, hit/float(total))
+    print 'ndcg at %d: %.f' % (k, ndcg/float(total))
 
 def main():
     random.seed(0)
@@ -191,8 +195,7 @@ def main():
 
     model = None
     if args.load_pretrained_model:
-        #TODO: figure out if it continues training of the loaded model?
-        with open(args.output_dir + "/mf_model.pkl", 'rb') as handle:
+        with open(args.pretrained_dir + "/mf_model.pkl", 'rb') as handle:
             model = cPickle.load(handle)
     else:
         # initialize a new model
@@ -209,7 +212,8 @@ def main():
         max_samples = None if args.without_sampling else args.max_samples
         print 'training...'
         print 'max_samples: ', max_samples
-        model.train(train_data_mat, sampler, args.num_iters, max_samples)
+        train_new_model = not args.load_pretrained_model
+        model.train(train_data_mat, sampler, args.num_iters, train_new_model, max_samples)
 
         # save the trained model
         # note that output_dir should contain information about

@@ -39,12 +39,13 @@ class BPR(object):
         self.negative_item_regularization = args.negative_item_regularization
         self.update_negative_item_factors = args.update_negative_item_factors
 
-    def train(self,data,sampler,num_iters,max_samples=None):
+    def train(self,data,sampler,num_iters,train_new_model=True,max_samples=None):
         """train model
         data: user-item matrix as a scipy sparse matrix
               users and items are zero-indexed
         """
-        self.init(data)
+        if train_new_model:
+            self.init(data)
 
         print 'initial loss = {0}'.format(self.loss())
         start_time = time.time()
