@@ -7,8 +7,40 @@ import numpy as np
 import scipy.sparse as sp
 import random
 import sys
+import argparse
 sys.path.append('..')
 from eval import hit_at_k, ndcg_at_k
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--learning_rate",
+                        default=0.005,
+                        help="learning rate",
+                        type=float)
+    parser.add_argument("--num_factors",
+                        default=64,
+                        help="rank of the matrix decomposition",
+                        type=int)
+    parser.add_argument("--num_iters",
+                        default=10,
+                        help="number of iterations",
+                        type=int)
+    parser.add_argument("--max_samples",
+                        default=1000,
+                        help="max number of training samples in each iteration",
+                        type=int)
+    parser.add_argument("--k",
+                        default=15,
+                        help="k for hit@k and ndcg@k",
+                        type=int)
+    parser.add_argument("--without_sampling",
+                        action="store_true")
+    parser.add_argument("--load_pretrained_model",
+                        action="store_true")
+    parser.add_argument("--do_train",
+                        action="store_true")
+    args = parser.parse_args()
+    return args
 
 def load_data():
     # load user song dict
@@ -118,8 +150,11 @@ def prep_test_data(test_user_song, train_user_song, full_song_user, min_user_ix,
 
     return test_data
 
-def evaluate(model, k, test_user_song, train_user_song, full_song_user, min_user_ix, min_song_ix):
-    test_data = prep_test_data(test_user_song, train_user_song, full_song_user, min_user_ix, min_song_ix)
+def evaluate(model, k, test_user_song, train_user_song, full_song_user, \
+             min_user_ix, min_song_ix):
+    print 'prepare test data...'
+    test_data = prep_test_data(test_user_song, train_user_song, full_song_user, \
+                               min_user_ix, min_song_ix)
     yes = 0
     count = 0
     for instance in test_data:
@@ -138,40 +173,41 @@ def evaluate(model, k, test_user_song, train_user_song, full_song_user, min_user
     print 'hit at %d: %.3f' % (k, yes/float(count))
 
 def main():
+    random.seed(1)
+    args = parse_args()
+
     # load data
     print 'load data...'
     train_user_song, test_user_song, full_song_user, full_song_user, \
     num_users, min_user_ix, num_songs, min_song_ix = load_data()
 
-    do_train = True
-    if do_train:
-        train_data_mat = prep_train_data(train_user_song, num_users, min_user_ix, num_songs, min_song_ix)
-        # TODO: have option to load prev model or start with a new model
-        new_model = True
-        if new_model:
-            args = BPRArgs()
-            args.learning_rate = 0.005
+    model = None
+    if args.load_pretrained_model:
+        #TODO: load the model
+        #TODO: continue training the loaded model
+        pass
+    else:
+        # initialize a new model
+        bpra_args = BPRArgs()
+        bpra_args.learning_rate = args.learning_rate
+        model = BPR(args.num_factors, bpra_args)
 
-            num_factors = 64
-            model = BPR(num_factors,args)
+    if args.do_train:
+        print 'prepare training data...'
+        train_data_mat = prep_train_data(train_user_song, num_users, \
+                                         min_user_ix, num_songs, min_song_ix)
+        sample_negative_items_empirically = True
+        sampler = UniformPairWithoutReplacement(sample_negative_items_empirically)
+        max_samples = None if args.without_sampling else args.max_samples
+        print 'training...'
+        model.train(train_data_mat, sampler, args.num_iters, max_samples)
 
-            sample_negative_items_empirically = True
-            sampler = UniformPairWithoutReplacement(sample_negative_items_empirically)
+        #TODO: save the trained model
 
-            num_iters = 2
-            max_samples = 1000
-
-            model.train(train_data_mat,sampler,num_iters,max_samples)
-        else:
-            #TODO: load the model
-            #TODO: continue training the loaded model
-            pass
-
-    #TODO: have option to save the trained model
-
-    # evaluate
-    print 'evaluating...'
-    evaluate(model, 15, test_user_song, train_user_song, full_song_user, min_user_ix, min_song_ix)
+    if args.do_train or args.load_pretrained_model:
+        print 'evaluating...'
+        evaluate(model, args.k, test_user_song, train_user_song, full_song_user, \
+             min_user_ix, min_song_ix)
 
 if __name__=='__main__':
     main()
