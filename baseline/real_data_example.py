@@ -8,6 +8,7 @@ import scipy.sparse as sp
 import random
 import sys
 import argparse
+import pickle
 sys.path.append('..')
 from eval import hit_at_k, ndcg_at_k
 
@@ -33,6 +34,10 @@ def parse_args():
                         default=15,
                         help="k for hit@k and ndcg@k",
                         type=int)
+    parser.add_argument("--output_dir",
+                        default=".",
+                        help="save the trained model here",
+                        type=str)
     parser.add_argument("--without_sampling",
                         action="store_true")
     parser.add_argument("--load_pretrained_model",
@@ -155,8 +160,9 @@ def evaluate(model, k, test_user_song, train_user_song, full_song_user, \
     print 'prepare test data...'
     test_data = prep_test_data(test_user_song, train_user_song, full_song_user, \
                                min_user_ix, min_song_ix)
-    yes = 0
-    count = 0
+    hit = 0
+    ndcg = 0
+    total = 0
     for instance in test_data:
         rank_tuples = []
         for i in instance:
@@ -166,14 +172,16 @@ def evaluate(model, k, test_user_song, train_user_song, full_song_user, \
         # sort rank tuples based on descending order of score
         rank_tuples.sort(reverse=True)
         #print('rank_tuples: ', rank_tuples)
-        yes = yes + hit_at_k(rank_tuples, k)
-        count = count + 1
+        hit = hit + hit_at_k(rank_tuples, k)
+        ndcg = ndcg + ndcg_at_k(rank_tuples, k)
+        total = total + 1
 
-    print 'Total number of test cases: ', count
-    print 'hit at %d: %.3f' % (k, yes/float(count))
+    print 'Total number of test cases: ', total
+    print 'hit at %d: %.3f' % (k, hit/float(total))
+    print 'ndcg at %d: %.3f' % (k, ndcg/float(total))
 
 def main():
-    random.seed(1)
+    random.seed(0)
     args = parse_args()
 
     # load data
@@ -183,9 +191,9 @@ def main():
 
     model = None
     if args.load_pretrained_model:
-        #TODO: load the model
-        #TODO: continue training the loaded model
-        pass
+        #TODO: figure out if it continues training of the loaded model?
+        with open(args.output_dir + "/mf_model.pkl", 'rb') as handle:
+            model = cPickle.load(handle)
     else:
         # initialize a new model
         bpra_args = BPRArgs()
@@ -200,9 +208,13 @@ def main():
         sampler = UniformPairWithoutReplacement(sample_negative_items_empirically)
         max_samples = None if args.without_sampling else args.max_samples
         print 'training...'
+        print 'max_samples: ', max_samples
         model.train(train_data_mat, sampler, args.num_iters, max_samples)
 
-        #TODO: save the trained model
+        # save the trained model
+        # note that output_dir should contain information about
+        # number of iterations, max sample size, num_factors, and learning rate
+        pickle.dump(model, open(args.output_dir + "/mf_model.pkl","wb"), protocol=2)
 
     if args.do_train or args.load_pretrained_model:
         print 'evaluating...'

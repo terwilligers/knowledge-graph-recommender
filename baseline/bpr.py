@@ -52,7 +52,7 @@ class BPR(object):
             for u,i,j in sampler.generate_samples(self.data, max_samples):
                 self.update_factors(u,i,j)
             print 'iteration {0}: loss = {1}, time = {2} seconds'.\
-                   format(it,self.loss(),time.time()-start_time)
+                   format(it,self.loss(),round(time.time()-start_time, 3))
             start_time = time.time()
 
     def init(self,data):
@@ -60,6 +60,7 @@ class BPR(object):
         self.num_users,self.num_items = self.data.shape
 
         self.item_bias = np.zeros(self.num_items)
+        np.random.seed(0)
         self.user_factors = np.random.random_sample((self.num_users,self.D))
         self.item_factors = np.random.random_sample((self.num_items,self.D))
 
