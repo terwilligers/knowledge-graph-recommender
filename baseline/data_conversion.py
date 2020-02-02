@@ -22,7 +22,7 @@ with open("../data/song_data_ix/rs_ix_song_user.dict", 'rb')as handle:
 def convert_for_bpr(pos_list, neg_list):
     bpr_matrix = []
     percent = 0
-    while (len(neg_list) > 99) and (len(pos_list) != 0) and (percent < 10):
+    while (len(neg_list) > 99) and (len(pos_list) != 0):
         if len(neg_list) % 15573 == 0:
             print(percent, "%")
             percent += 1
@@ -34,7 +34,7 @@ def convert_for_bpr(pos_list, neg_list):
         row.insert(randint(0, 99), (rand_pos_user, 1))
         bpr_matrix.append(row)
     mat = np.array(bpr_matrix)
-    np.save('10_percent_bpr_matrix', mat)
+    np.save('bpr_matrix', mat)
 
 
 def main():
@@ -46,5 +46,4 @@ def main():
 
 
 if __name__ == "__main__":
-
     main()
