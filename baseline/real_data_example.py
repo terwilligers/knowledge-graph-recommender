@@ -181,8 +181,8 @@ def evaluate(model, k, test_user_song, train_user_song, full_song_user, \
         total = total + 1
 
     print 'Total number of test cases: ', total
-    print 'hit at %d: %.f' % (k, hit/float(total))
-    print 'ndcg at %d: %.f' % (k, ndcg/float(total))
+    print 'hit at %d: %f' % (k, hit/float(total))
+    print 'ndcg at %d: %f' % (k, ndcg/float(total))
 
 def main():
     random.seed(0)
@@ -223,7 +223,7 @@ def main():
     if args.do_train or args.load_pretrained_model:
         print 'evaluating...'
         evaluate(model, args.k, test_user_song, train_user_song, full_song_user, \
-             min_user_ix, min_song_ix)
+                 min_user_ix, min_song_ix)
 
 if __name__=='__main__':
     main()
