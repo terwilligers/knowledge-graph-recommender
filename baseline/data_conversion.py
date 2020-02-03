@@ -28,10 +28,10 @@ def convert_for_bpr(pos_list, neg_list):
             percent += 1
         row = []
         for i in range(100):
-            rand_neg_user = neg_list.pop(randint(0, len(neg_list) - 1))
-            row.append((rand_neg_user, 0))
-        rand_pos_user = pos_list.pop(randint(0, len(pos_list) - 1))
-        row.insert(randint(0, 99), (rand_pos_user, 1))
+            neg_user = neg_list.pop(0)
+            row.append((neg_user, 0))
+        pos_user = pos_list.pop(0)
+        row.insert(randint(0, 99), (pos_user, 1))
         bpr_matrix.append(row)
     mat = np.array(bpr_matrix)
     np.save('bpr_matrix', mat)
@@ -43,7 +43,5 @@ def main():
     # to have the allow_pickle=True in your input.
     # matrix_python3 = np.load("../baseline/bpr_matrix.npy", allow_pickle=True)
     # matrix_python2 = np.load("../baseline/bpr_matrix.npy")
-
-
 if __name__ == "__main__":
     main()
