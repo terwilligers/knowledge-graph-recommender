@@ -12,6 +12,10 @@ import pickle
 sys.path.append('..')
 from eval import hit_at_k, ndcg_at_k
 
+# maps the indices in the kprn data to the matrix indices here
+kprn2matrix_user = {}
+kprn2matrix_song = {}
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--learning_rate",
@@ -42,6 +46,10 @@ def parse_args():
                         default=".",
                         help="load the pretrained model here",
                         type=str)
+    parser.add_argument('--subnetwork',
+                        default='dense',
+                        choices=['dense', 'rs'],
+                        help='The type of subnetwork to form from the full KG')
     parser.add_argument("--without_sampling",
                         action="store_true")
     parser.add_argument("--load_pretrained_model",
@@ -51,14 +59,28 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def load_data():
+def load_data(args):
     # load user song dict
-    with open("../data/song_data_ix/dense_train_ix_user_song_py2.pkl", 'rb') as handle:
-        train_user_song = cPickle.load(handle)
-    with open("../data/song_data_ix/dense_test_ix_user_song_py2.pkl", 'rb') as handle:
-        test_user_song = cPickle.load(handle)
-    with open("../data/song_data_ix/dense_ix_song_user_py2.pkl", 'rb') as handle:
-        full_song_user = cPickle.load(handle)
+    if args.subnetwork == 'dense':
+        with open("../data/song_data_ix/dense_train_ix_user_song_py2.pkl", 'rb') as handle:
+            train_user_song = cPickle.load(handle)
+        with open("../data/song_data_ix/dense_test_ix_user_song_py2.pkl", 'rb') as handle:
+            test_user_song = cPickle.load(handle)
+        with open("../data/song_data_ix/dense_ix_song_user_py2.pkl", 'rb') as handle:
+            full_song_user = cPickle.load(handle)
+    elif args.subnetwork == 'rs':
+        with open("../data/song_data_ix/rs_train_ix_user_song_py2.pkl", 'rb') as handle:
+            train_user_song = cPickle.load(handle)
+        with open("../data/song_data_ix/rs_test_ix_user_song_py2.pkl", 'rb') as handle:
+            test_user_song = cPickle.load(handle)
+        with open("../data/song_data_ix/rs_ix_song_user_py2.pkl", 'rb') as handle:
+            full_song_user = cPickle.load(handle)
+
+    global kprn2matrix_user
+    global kprn2matrix_song
+    #TODO: get rid of users who don't listen to any songs in subnet training data
+    #TODO: get the index correspondence of the kprn data and the matrix indices
+    #TODO: use the index conversion in places needed
 
     # learn user index information
     # note that user in train and test should be exactly the same
@@ -191,7 +213,7 @@ def main():
     # load data
     print 'load data...'
     train_user_song, test_user_song, full_song_user, full_song_user, \
-    num_users, min_user_ix, num_songs, min_song_ix = load_data()
+    num_users, min_user_ix, num_songs, min_song_ix = load_data(args)
 
     model = None
     if args.load_pretrained_model:
