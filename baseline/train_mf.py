@@ -60,7 +60,7 @@ def parse_args():
     return args
 
 def load_data(args):
-    # load user song dict
+    # load user song dict and song user dict
     if args.subnetwork == 'dense':
         with open("../data/song_data_ix/dense_train_ix_user_song_py2.pkl", 'rb') as handle:
             train_user_song = cPickle.load(handle)
@@ -76,56 +76,39 @@ def load_data(args):
         with open("../data/song_data_ix/rs_ix_song_user_py2.pkl", 'rb') as handle:
             full_song_user = cPickle.load(handle)
 
-    global kprn2matrix_user
-    global kprn2matrix_song
-    #TODO: get rid of users who don't listen to any songs in subnet training data
-    #TODO: get the index correspondence of the kprn data and the matrix indices
-    #TODO: use the index conversion in places needed
+    # get rid of users who don't listen to any songs in the subnetwork
+    # get rid of them in both train and test user song dictionaries
+    for user in train_user_song.keys():
+        if train_user_song[user] == None or len(train_user_song[user]) == 0:
+            train_user_song.pop(user)
+            if user in test_user_song:
+                test_user_song.pop(user)
 
-    # learn user index information
-    # note that user in train and test should be exactly the same
+    #get the index correspondence of the kprn data and the matrix indices
     user_ix = list(train_user_song.keys())
-    user_ix.sort()
-    min_user_ix = user_ix[0]
-    max_user_ix = user_ix[-1]
-    num_users = max_user_ix - min_user_ix + 1
-
-    # learn song index information
+    user_ix.sort() # ascending order
     song_ix = list(full_song_user.keys())
-    song_ix.sort()
-    min_song_ix = song_ix[0]
-    max_song_ix = song_ix[-1]
-    num_songs = max_song_ix - min_song_ix + 1
+    song_ix.sort() # ascending order
 
-    return train_user_song, test_user_song, full_song_user, full_song_user, \
-           num_users, min_user_ix, num_songs, min_song_ix
+    return train_user_song, test_user_song, full_song_user, user_ix, song_ix
 
-def prep_train_data(train_user_song, num_users, min_user_ix, num_songs, min_song_ix):
+def prep_train_data(train_user_song, user_ix, song_ix):
     '''
     prepare training data in csr sparse matrix form
     '''
-    # redesignate the user index
-    train_user_song_0ix = {}
-    for user_ix in train_user_song.keys():
-        actual_user_ix = user_ix-min_user_ix
-        train_user_song_0ix[actual_user_ix] = []
-        for song_ix in train_user_song[user_ix]:
-            # note that person song is not relevant in mf, as we do not care about
-            # paths, so that songs that only show up in person song don't have an
-            # index here
-            actual_song_ix = song_ix-min_song_ix
-            train_user_song_0ix[actual_user_ix].append(actual_song_ix)
+    num_users = len(user_ix)
+    num_songs = len(song_ix)
 
     # convert dictionary to sparse matrix
-    mat = sp.dok_matrix((num_users, num_songs), dtype=np.int8)
+    mat = sp.dok_matrix((len(user_ix), len(song_ix)), dtype=np.int8)
     print 'number of users: ', num_users
     print 'number of songs: ', num_songs
 
-    count = 0
-    for user_id, song_ids in train_user_song_0ix.items():
-        count += 1
-        for song_id in song_ids:
-            mat[user_id, song_id] = 1
+    for kprn_user_id, kprn_song_ids in train_user_song.items():
+        mf_user_id = user_ix.index(kprn_user_id)
+        for kprn_song_id in kprn_song_ids:
+            mf_song_id = song_ix.index(kprn_song_id)
+            mat[mf_user_id, mf_song_id] = 1
     mat = mat.tocsr()
     print 'shape of sparse matrix', mat.shape
 
@@ -137,55 +120,57 @@ def prep_train_data(train_user_song, num_users, min_user_ix, num_songs, min_song
 
     return mat
 
-def prep_test_data(test_user_song, train_user_song, full_song_user, min_user_ix, min_song_ix):
+def prep_test_data(test_user_song, train_user_song, full_song_user, user_ix, song_ix):
     '''
     for each user, for every 1 positive interaction in test data,
     randomly sample 100 negative interactions in tests data
 
     only evaluate on 10 users here
+
+    converts kprn indices to mf indices
     '''
     # both test_neg_inter and test_pos_inter are a list of (u, i) pairs
     # where u is actual user index and i is actual song index
     test_neg_inter = [] # don't exist in either train and test
     test_pos_inter = [] # exist in test
-    all_eval_users = list(xrange(10))
+    eval_user_ix_mf = list(xrange(10))
     # test_data is a list of lists,
     # where each list is a list of 101 pairs ((u,i),tag)
     test_data = []
 
     print 'find all pos interactions...'
-    for actual_user_ix in all_eval_users:
-        user_ix = actual_user_ix + min_user_ix
-        for song_ix in test_user_song[user_ix]:
-            actual_song_ix = song_ix-min_song_ix
-            test_pos_inter.append((actual_user_ix, actual_song_ix))
+    for user_ix_mf in eval_user_ix_mf:
+        user_ix_kprn = user_ix[user_ix_mf]
+        for song_ix_kprn in test_user_song[user_ix_kprn]:
+            song_ix_mf = song_ix.index(song_ix_kprn)
+            test_pos_inter.append((user_ix_mf, song_ix_mf))
 
     print 'sample neg interactions...'
     for each_pos in test_pos_inter:
         instance = []
         instance.append((each_pos, 1))
         # append negative pairs
-        actual_user_ix = each_pos[0]
-        fake_user_ix = actual_user_ix + min_user_ix
-        # use fake song ix
+        user_ix_mf = each_pos[0]
+        user_ix_kprn = user_ix[user_ix_mf]
+        # use user_ix_kprn to find all negative test songs for that user
         all_songs = set(full_song_user.keys())
-        train_pos = set(train_user_song[fake_user_ix])
-        test_pos = set(test_user_song[fake_user_ix])
+        train_pos = set(train_user_song[user_ix_kprn])
+        test_pos = set(test_user_song[user_ix_kprn])
         all_negative_songs = all_songs - train_pos - test_pos
 
         neg_samples = random.sample(all_negative_songs, 100)
-        for neg_song_fake_ix in neg_samples:
-            neg_song_actual_ix = neg_song_fake_ix - min_song_ix
-            instance.append(((actual_user_ix, neg_song_actual_ix), 0))
+        for song_ix_kprn in neg_samples:
+            song_ix_mf = song_ix.index(song_ix_kprn)
+            instance.append(((user_ix_mf, song_ix_mf), 0))
         test_data.append(instance)
 
     return test_data
 
 def evaluate(model, k, test_user_song, train_user_song, full_song_user, \
-             min_user_ix, min_song_ix):
+             user_ix, song_ix):
     print 'prepare test data...'
     test_data = prep_test_data(test_user_song, train_user_song, full_song_user, \
-                               min_user_ix, min_song_ix)
+                               user_ix, song_ix)
     hit = 0
     ndcg = 0
     total = 0
@@ -212,8 +197,8 @@ def main():
 
     # load data
     print 'load data...'
-    train_user_song, test_user_song, full_song_user, full_song_user, \
-    num_users, min_user_ix, num_songs, min_song_ix = load_data(args)
+    train_user_song, test_user_song, full_song_user, \
+    user_ix, song_ix = load_data(args)
 
     model = None
     if args.load_pretrained_model:
@@ -227,8 +212,7 @@ def main():
 
     if args.do_train:
         print 'prepare training data...'
-        train_data_mat = prep_train_data(train_user_song, num_users, \
-                                         min_user_ix, num_songs, min_song_ix)
+        train_data_mat = prep_train_data(train_user_song, user_ix, song_ix)
         sample_negative_items_empirically = True
         sampler = UniformPairWithoutReplacement(sample_negative_items_empirically)
         max_samples = None if args.without_sampling else args.max_samples
@@ -245,7 +229,7 @@ def main():
     if args.do_train or args.load_pretrained_model:
         print 'evaluating...'
         evaluate(model, args.k, test_user_song, train_user_song, full_song_user, \
-                 min_user_ix, min_song_ix)
+                 user_ix, song_ix)
 
 if __name__=='__main__':
     main()
