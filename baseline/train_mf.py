@@ -56,8 +56,13 @@ def parse_args():
                         action="store_true")
     parser.add_argument("--do_train",
                         action="store_true")
+    parser.add_argument("--do_eval",
+                        action="store_true")
+    parser.add_argument("--eval_on_kprn_data",
+                        action="store_true")
     args = parser.parse_args()
     return args
+
 
 def load_data(args):
     # load user song dict and song user dict
@@ -76,6 +81,19 @@ def load_data(args):
         with open("../data/song_data_ix/rs_ix_song_user_py2.pkl", 'rb') as handle:
             full_song_user = cPickle.load(handle)
 
+    # debug
+    train_user_ix_debug = list(train_user_song.keys())
+    test_user_ix_debug = list(test_user_song.keys())
+    diff = set(train_user_ix_debug) - set(test_user_ix_debug)
+    if len(diff) != 0:
+        print('difference in train and test users')
+    train_user_ix_debug.sort()
+    test_user_ix_debug.sort()
+    print('smallest train user index: ', train_user_ix_debug[0])
+    print('smallest test user index: ', test_user_ix_debug[0])
+    print('62254 in train: ', 62254 in train_user_ix_debug)
+    print('62254 in test: ', 62254 in test_user_ix_debug)
+
     # get rid of users who don't listen to any songs in the subnetwork
     # get rid of them in both train and test user song dictionaries
     for user in train_user_song.keys():
@@ -91,6 +109,7 @@ def load_data(args):
     song_ix.sort() # ascending order
 
     return train_user_song, test_user_song, full_song_user, user_ix, song_ix
+
 
 def prep_train_data(train_user_song, user_ix, song_ix):
     '''
@@ -119,6 +138,7 @@ def prep_train_data(train_user_song, user_ix, song_ix):
     print 'number of nonzero entries: ', mat.nnz
 
     return mat
+
 
 def prep_test_data(test_user_song, train_user_song, full_song_user, user_ix, song_ix):
     '''
@@ -166,30 +186,46 @@ def prep_test_data(test_user_song, train_user_song, full_song_user, user_ix, son
 
     return test_data
 
-def evaluate(model, k, test_user_song, train_user_song, full_song_user, \
-             user_ix, song_ix):
-    print 'prepare test data...'
-    test_data = prep_test_data(test_user_song, train_user_song, full_song_user, \
-                               user_ix, song_ix)
+
+def evaluate(args, model, user_ix, song_ix, test_data):
     hit = 0
     ndcg = 0
     total = 0
     for instance in test_data:
         rank_tuples = []
         for i in instance:
-            score = model.predict(i[0][0],i[0][1])
+            if args.eval_on_kprn_data:
+                #convert kprn indices to mf indices (user and song)
+                user_ix_kprn = i[0][0]
+                song_ix_kprn = i[0][1]
+                user_ix_mf = user_ix.index(user_ix_kprn)
+                song_ix_mf = song_ix.index(song_ix_kprn)
+            else:
+                user_ix_mf = i[0][0]
+                song_ix_mf = i[0][1]
+            score = model.predict(user_ix_mf,song_ix_mf)
             tag = i[1]
             rank_tuples.append((score, tag))
         # sort rank tuples based on descending order of score
         rank_tuples.sort(reverse=True)
-        #print('rank_tuples: ', rank_tuples)
-        hit = hit + hit_at_k(rank_tuples, k)
-        ndcg = ndcg + ndcg_at_k(rank_tuples, k)
+        hit = hit + hit_at_k(rank_tuples, args.k)
+        ndcg = ndcg + ndcg_at_k(rank_tuples, args.k)
         total = total + 1
 
     print 'Total number of test cases: ', total
-    print 'hit at %d: %f' % (k, hit/float(total))
-    print 'ndcg at %d: %f' % (k, ndcg/float(total))
+    print 'hit at %d: %f' % (args.k, hit/float(total))
+    print 'ndcg at %d: %f' % (args.k, ndcg/float(total))
+
+
+def load_test_data(args):
+    if args.subnetwork == 'dense':
+        with open("../data/song_test_data/bpr_matrix_test_dense_py2.pkl", 'rb') as handle:
+            test_data = cPickle.load(handle)
+    elif args.subnetwork == 'rs':
+        with open("../data/song_test_data/bpr_matrix_test_rs_py2.pkl", 'rb') as handle:
+            test_data = cPickle.load(handle)
+    return test_data
+
 
 def main():
     random.seed(0)
@@ -226,10 +262,18 @@ def main():
         # number of iterations, max sample size, num_factors, and learning rate
         pickle.dump(model, open(args.output_dir + "/mf_model.pkl","wb"), protocol=2)
 
-    if args.do_train or args.load_pretrained_model:
+    if args.do_train or args.load_pretrained_model and args.do_eval:
+        print 'prepare test data...'
+        # note: the user and song indices have not been converted to the mf indices
+        # the conversion will be done in the evaluate function
+        if args.eval_on_kprn_data:
+            test_data = load_test_data(args)
+        else:
+            test_data = prep_test_data(test_user_song, train_user_song, \
+                                       full_song_user, user_ix, song_ix)
+
         print 'evaluating...'
-        evaluate(model, args.k, test_user_song, train_user_song, full_song_user, \
-                 user_ix, song_ix)
+        evaluate(args, model, user_ix, song_ix, test_data)
 
 if __name__=='__main__':
     main()
