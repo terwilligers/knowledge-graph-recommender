@@ -1,51 +1,43 @@
 import pickle
 import numpy as np
-import scipy.sparse as sp
 from random import randint
 
-with open("../data/song_data_ix/rs_train_pos_interactions.txt", 'rb') as handle:
-    train_pos_user_song = pickle.load(handle)
-with open("../data/song_data_ix/rs_train_neg_interactions.txt", 'rb') as handle:
-    train_neg_user_song = pickle.load(handle)
-with open("../data/song_data_ix/rs_test_pos_interactions.txt", 'rb') as handle:
-    test_pos_user_song = pickle.load(handle)
-with open("../data/song_data_ix/rs_test_neg_interactions.txt", 'rb') as handle:
-    test_neg_user_song = pickle.load(handle)
-with open("../data/song_data_ix/rs_ix_song_user.dict", 'rb')as handle:
-    full_song_user = pickle.load(handle)
-
-# converts pos/neg usersong pair lists into a matrix where every row contains 101 tuples with the format
-# ((user, song), 1 or 0)
-# each row has 1 positive interactions and 100 negative interactions
-
-
 def convert_for_bpr(pos_list, neg_list):
+    '''
+    converts pos/neg usersong pair lists into a matrix where every row contains
+    101 tuples with the format ((user, song), 1 or 0)
+    each row has 1 positive interactions and 100 negative interactions
+    '''
     bpr_matrix = []
+    total_row = len(pos_list)
     percent = 0
+    count = 0
     while (len(neg_list) > 99) and (len(pos_list) != 0):
-        if len(neg_list) % 15573 <= 100:
-            print(percent, "%")
-            percent += 1
         row = []
         for i in range(100):
-            neg_user = neg_list.pop(0)
-            row.append((neg_user, 0))
-        pos_user = pos_list.pop(0)
-        row.insert(randint(0, 99), (pos_user, 1))
+            neg_interaction = neg_list.pop(0)
+            row.append((neg_interaction, 0))
+        pos_interaction = pos_list.pop(0)
+        row.insert(randint(0, 99), (pos_interaction, 1))
         bpr_matrix.append(row)
-    mat = np.array(bpr_matrix)
-    with open('bpr_matrix', 'wb') as f:
-        pickle.dump(mat, f, protocol=pickle.HIGHEST_PROTOCOL)
-        # np.save('bpr_matrix', mat)
+        count += 1
+        if count % (total_row//100) == 0:
+            percent += 1
+            print(percent, ' percent done')
+
+    # pickle to python2 format
+    pickle.dump(bpr_matrix, open("../data/song_test_data/bpr_matrix_test_rs_py2.pkl","wb"), protocol=2)
 
 
 def main():
+    with open("../data/song_test_data/rs_test_pos_interactions.txt", 'rb') as handle:
+        test_pos_user_song = pickle.load(handle)
+    with open("../data/song_test_data/rs_test_neg_interactions.txt", 'rb') as handle:
+        test_neg_user_song = pickle.load(handle)
+
     convert_for_bpr(test_pos_user_song, test_neg_user_song)
     '''
-    numpy:
-    matrix_python3 = np.load("../baseline/bpr_matrix.npy", allow_pickle=True)
-    
-    pickle: 
+    pickle:
     with open('bpr_matrix', 'rb') as f:
         x = pickle.load(f)
         print(x.shape)
