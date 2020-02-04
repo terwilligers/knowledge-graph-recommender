@@ -23,7 +23,7 @@ def convert_for_bpr(pos_list, neg_list):
     bpr_matrix = []
     percent = 0
     while (len(neg_list) > 99) and (len(pos_list) != 0):
-        if len(neg_list) % 15573 == 0:
+        if len(neg_list) % 15573 <= 100:
             print(percent, "%")
             percent += 1
         row = []
@@ -34,14 +34,22 @@ def convert_for_bpr(pos_list, neg_list):
         row.insert(randint(0, 99), (pos_user, 1))
         bpr_matrix.append(row)
     mat = np.array(bpr_matrix)
-    np.save('bpr_matrix', mat)
+    with open('bpr_matrix', 'wb') as f:
+        pickle.dump(mat, f, protocol=pickle.HIGHEST_PROTOCOL)
+        # np.save('bpr_matrix', mat)
 
 
 def main():
     convert_for_bpr(test_pos_user_song, test_neg_user_song)
-    # example for how to load matrix. Since you are using python 2, I believe you don't need
-    # to have the allow_pickle=True in your input.
-    # matrix_python3 = np.load("../baseline/bpr_matrix.npy", allow_pickle=True)
-    # matrix_python2 = np.load("../baseline/bpr_matrix.npy")
+    '''
+    numpy:
+    matrix_python3 = np.load("../baseline/bpr_matrix.npy", allow_pickle=True)
+    
+    pickle: 
+    with open('bpr_matrix', 'rb') as f:
+        x = pickle.load(f)
+        print(x.shape)
+    '''
+
 if __name__ == "__main__":
     main()
