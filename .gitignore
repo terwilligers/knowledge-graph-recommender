@@ -9,7 +9,7 @@ data/song_data/train.csv
 # localized pickles
 *.dict
 *nodes.txt
-
+*.pkl
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
