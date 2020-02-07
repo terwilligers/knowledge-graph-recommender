@@ -41,36 +41,7 @@ def main():
     with open("../data/song_data/bpr_matrix_test_dense_py2.pkl", 'rb') as handle:
         bpr_matrix = pickle.load(handle)
 
-    # convert_for_bpr(test_pos_user_song, test_neg_user_song)
-
-
-
-    # rs train data (only select first 10 users)
-    with open("../data/song_test_data/rs_train_pos_interactions.txt", 'rb') as handle:
-        test_pos_user_song = pickle.load(handle)
-    with open("../data/song_test_data/rs_train_neg_interactions.txt", 'rb') as handle:
-        test_neg_user_song = pickle.load(handle)
-
-    user_ix = set()
-    for pair in test_pos_user_song:
-        user_ix.add(pair[0])
-    for pair in test_neg_user_song:
-        user_ix.add(pair[0])
-    user_ix = list(user_ix)
-    user_ix.sort()
-    user_ix = user_ix[:10]
-    print('users: ', user_ix)
-
-    test_pos_user_song_filtered = []
-    test_neg_user_song_filtered = []
-    for pair in test_pos_user_song:
-        if pair[0] in user_ix:
-            test_pos_user_song_filtered.append(pair)
-    for pair in test_neg_user_song:
-        if pair[0] in user_ix:
-            test_neg_user_song_filtered.append(pair)
-
-    convert_for_bpr(test_pos_user_song_filtered, test_neg_user_song_filtered)
+    convert_for_bpr(test_pos_user_song, test_neg_user_song)
 
 if __name__ == "__main__":
     main()
