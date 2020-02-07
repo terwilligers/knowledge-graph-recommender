@@ -60,7 +60,7 @@ def parse_args():
                         action="store_true")
     parser.add_argument("--eval_data",
                         default='kprn_test',
-                        choices=['kprn_test', 'kprn_train_10users', '10users'],
+                        choices=['kprn_test', '10users'],
                         help='Evaluation data')
     args = parser.parse_args()
     return args
@@ -75,6 +75,8 @@ def load_data(args):
             test_user_song = cPickle.load(handle)
         with open("../data/song_data_ix/dense_ix_song_user_py2.pkl", 'rb') as handle:
             full_song_user = cPickle.load(handle)
+        with open("../data/song_data_ix/dense_ix_song_person_py2.pkl", 'rb') as handle:
+            full_song_person = cPickle.load(handle)
     elif args.subnetwork == 'rs':
         print 'rs subnetwork'
         with open("../data/song_data_ix/rs_train_ix_user_song_py2.pkl", 'rb') as handle:
@@ -83,6 +85,8 @@ def load_data(args):
             test_user_song = cPickle.load(handle)
         with open("../data/song_data_ix/rs_ix_song_user_py2.pkl", 'rb') as handle:
             full_song_user = cPickle.load(handle)
+        with open("../data/song_data_ix/rs_ix_song_person_py2.pkl", 'rb') as handle:
+            full_song_person = cPickle.load(handle)
 
     # get rid of users who don't listen to any songs in the subnetwork
     # get rid of them in both train and test user song dictionaries
@@ -95,10 +99,12 @@ def load_data(args):
     #get the index correspondence of the kprn data and the matrix indices
     user_ix = list(train_user_song.keys())
     user_ix.sort() # ascending order
-    song_ix = list(full_song_user.keys())
+    songs_from_user = set(full_song_user.keys())
+    songs_from_person = set(full_song_person.keys())
+    song_ix = list(songs_from_user.union(songs_from_person))
     song_ix.sort() # ascending order
 
-    return train_user_song, test_user_song, full_song_user, user_ix, song_ix
+    return train_user_song, test_user_song, full_song_user, full_song_person, user_ix, song_ix
 
 
 def prep_train_data(train_user_song, user_ix, song_ix):
@@ -121,17 +127,12 @@ def prep_train_data(train_user_song, user_ix, song_ix):
     mat = mat.tocsr()
     print 'shape of sparse matrix', mat.shape
 
-    # cut matrix: only select the first 500 users
-    print 'cut to only consider first 10 users'
-    indices=list(xrange(10))
-    mat = mat[indices, :]
-    print 'shape of sparse matrix after cutting', mat.shape
     print 'number of nonzero entries: ', mat.nnz
 
     return mat
 
 
-def prep_test_data(test_user_song, train_user_song, full_song_user, user_ix, song_ix):
+def prep_test_data(test_user_song, train_user_song, full_song_user, full_song_person, user_ix, song_ix):
     '''
     for each user, for every 1 positive interaction in test data,
     randomly sample 100 negative interactions in tests data
@@ -164,7 +165,7 @@ def prep_test_data(test_user_song, train_user_song, full_song_user, user_ix, son
         user_ix_mf = each_pos[0]
         user_ix_kprn = user_ix[user_ix_mf]
         # use user_ix_kprn to find all negative test songs for that user
-        all_songs = set(full_song_user.keys())
+        all_songs = set(full_song_user.keys()).union(set(full_song_person.keys()))
         train_pos = set(train_user_song[user_ix_kprn])
         test_pos = set(test_user_song[user_ix_kprn])
         all_negative_songs = all_songs - train_pos - test_pos
@@ -188,24 +189,17 @@ def evaluate(args, model, user_ix, song_ix, test_data):
         rank_tuples = []
         for i in instance:
             tag = i[1]
-            if args.eval_data in ['kprn_test', 'kprn_train_10users']:
+            if args.eval_data == 'kprn_test':
                 #convert kprn indices to mf indices (user and song)
                 user_ix_kprn = i[0][0]
                 song_ix_kprn = i[0][1]
                 user_ix_mf = user_ix.index(user_ix_kprn)
                 user_set_mf.add(user_ix_mf)
                 user_set_kprn.add(user_ix_kprn)
-                if user_ix_mf >= 10:
-                    continue
-                if song_ix_kprn not in song_ix:
-                    rank_tuples.append((score, tag))
-                    continue
                 song_ix_mf = song_ix.index(song_ix_kprn)
             else:
                 user_ix_mf = i[0][0]
                 song_ix_mf = i[0][1]
-            #print 'user_ix_mf: ', user_ix_mf
-            #print 'song_ix_mf: ', song_ix_mf
             score = model.predict(user_ix_mf, song_ix_mf)
             rank_tuples.append((score, tag))
         # sort rank tuples based on descending order of score
@@ -217,9 +211,6 @@ def evaluate(args, model, user_ix, song_ix, test_data):
     print 'Total number of test cases: ', total
     print 'hit at %d: %f' % (args.k, hit/float(total))
     print 'ndcg at %d: %f' % (args.k, ndcg/float(total))
-    #print 'user_set_mf: ', len(user_set_mf)
-    #print 'user_set_kprn: ', len(user_set_kprn)
-    #print 'user_ix: ', user_ix[:10]
 
 
 def load_test_data(args):
@@ -228,12 +219,6 @@ def load_test_data(args):
             test_data = cPickle.load(handle)
     elif args.subnetwork == 'rs' and args.eval_data == 'kprn_test':
         with open("../data/song_test_data/bpr_matrix_test_rs_py2.pkl", 'rb') as handle:
-            test_data = cPickle.load(handle)
-    elif args.subnetwork == 'dense' and args.eval_data == 'kprn_train_10users':
-        with open("../data/song_test_data/bpr_matrix_train_dense_first10users_py2.pkl", 'rb') as handle:
-            test_data = cPickle.load(handle)
-    elif args.subnetwork == 'rs' and args.eval_data == 'kprn_train_10users':
-        with open("../data/song_test_data/bpr_matrix_train_rs_first10users_py2.pkl", 'rb') as handle:
             test_data = cPickle.load(handle)
     return test_data
 
@@ -244,7 +229,7 @@ def main():
 
     # load data
     print 'load data...'
-    train_user_song, test_user_song, full_song_user, \
+    train_user_song, test_user_song, full_song_user, full_song_person, \
     user_ix, song_ix = load_data(args)
 
     model = None
@@ -277,11 +262,12 @@ def main():
         print 'prepare test data...'
         # note: the user and song indices have not been converted to the mf indices
         # the conversion will be done in the evaluate function
-        if args.eval_data in ['kprn_test', 'kprn_train_10users']:
+        if args.eval_data == 'kprn_test':
             test_data = load_test_data(args)
         elif args.eval_data == '10users':
             test_data = prep_test_data(test_user_song, train_user_song, \
-                                       full_song_user, user_ix, song_ix)
+                                       full_song_user, full_song_person, \
+                                       user_ix, song_ix)
         print 'evaluating...'
         evaluate(args, model, user_ix, song_ix, test_data)
 
