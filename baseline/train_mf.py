@@ -11,12 +11,12 @@ import argparse
 import pickle
 sys.path.append('..')
 from eval import hit_at_k, ndcg_at_k
-sys.path.append('../data')
-from data_preparation import create_directory
+
 
 # maps the indices in the kprn data to the matrix indices here
 kprn2matrix_user = {}
 kprn2matrix_song = {}
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -227,6 +227,14 @@ def load_test_data(args):
     if args.eval_data == 'kprn_test_subset_1000':
         return random.sample(test_data, 1000)
     return test_data
+
+
+def create_directory(dir):
+    print("Creating directory %s" % dir)
+    try:
+        mkdir(dir)
+    except:
+        print("Directory already exists")
 
 
 def main():
