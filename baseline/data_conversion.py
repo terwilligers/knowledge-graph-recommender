@@ -38,9 +38,7 @@ def main():
         test_pos_user_song = pickle.load(handle)
     with open("../data/song_data_ix/dense_test_neg_interactions.txt", 'rb') as handle:
         test_neg_user_song = pickle.load(handle)
-    with open("../data/song_data/bpr_matrix_test_dense_py2.pkl", 'rb') as handle:
-        bpr_matrix = pickle.load(handle)
-
+    
     convert_for_bpr(test_pos_user_song, test_neg_user_song)
 
 if __name__ == "__main__":
