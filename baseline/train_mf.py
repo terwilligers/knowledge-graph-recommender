@@ -11,6 +11,8 @@ import argparse
 import pickle
 sys.path.append('..')
 from eval import hit_at_k, ndcg_at_k
+sys.path.append('../data')
+from data_preparation import create_directory
 
 # maps the indices in the kprn data to the matrix indices here
 kprn2matrix_user = {}
@@ -260,6 +262,7 @@ def main():
         # save the trained model
         # note that output_dir should contain information about
         # number of iterations, max sample size, num_factors, and learning rate
+        create_directory(args.output_dir)
         pickle.dump(model, open(args.output_dir + "/mf_model.pkl","wb"), protocol=2)
 
     if args.do_train or args.load_pretrained_model and args.do_eval:
