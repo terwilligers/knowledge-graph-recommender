@@ -9,7 +9,7 @@ import numpy as np
 from math import exp
 import random
 import time
-
+from train_mf import *
 class BPRArgs(object):
 
     def __init__(self,learning_rate=0.05,
@@ -49,13 +49,20 @@ class BPR(object):
 
         print 'initial loss = {0}'.format(self.loss())
         start_time = time.time()
+        count = 1
         for it in xrange(num_iters):
             for u,i,j in sampler.generate_samples(self.data, max_samples):
                 self.update_factors(u,i,j)
             print 'iteration {0}: loss = {1}, time = {2} seconds'.\
                    format(it,self.loss(),round(time.time()-start_time, 3))
             start_time = time.time()
-
+            '''
+            if count % 5 == 0:
+                evaluate(args, model, user_ix, song_ix, test_data) 
+                create_directory(args.output_dir)
+                pickle.dump(model, open(args.output_dir + "/mf_model_{}epochs.pkl".format(count), "wb"), protocol=2)
+            count += 1
+            '''
     def init(self,data):
         self.data = data
         self.num_users,self.num_items = self.data.shape
