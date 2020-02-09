@@ -248,6 +248,7 @@ class Tee(object):
 def main():
     random.seed(0)
     args = parse_args()
+    create_directory(args.output_dir)
     f = open(args.output_dir + '/logfile.txt', 'w')
     backup = sys.stdout
     sys.stdout = Tee(sys.stdout, f)
@@ -283,7 +284,6 @@ def main():
         print 'test_data: ', len(test_data)
         # note that output_dir should contain information about
         # number of iterations, max sample size, num_factors, and learning rate
-        create_directory(args.output_dir)
         for i in range(num_5epochs):
             print 'epoch: ',  (5*(i+1))
             # eval and dump model every 5 epochs
