@@ -237,9 +237,20 @@ def create_directory(dir):
         print("Directory already exists")
 
 
+class Tee(object):
+    def __init__(self, *files):
+        self.files = files
+    def write(self, obj):
+        for f in self.files:
+            f.write(obj)
+
+
 def main():
     random.seed(0)
     args = parse_args()
+    f = open(args.output_dir + '/logfile.txt', 'w')
+    backup = sys.stdout
+    sys.stdout = Tee(sys.stdout, f)
 
     # load data
     print 'load data...'
@@ -294,6 +305,7 @@ def main():
                                        full_song_user, full_song_person, \
                                        user_ix, song_ix)
         print 'evaluating...'
+        print 'test_data: ', len(test_data)
         evaluate(args, model, user_ix, song_ix, test_data)
 
 if __name__=='__main__':
