@@ -215,17 +215,17 @@ def evaluate(args, model, user_ix, song_ix, test_data):
     print 'ndcg at %d: %f' % (args.k, ndcg/float(total))
 
 
-def load_test_data(args):
+def load_test_data(args, eval_data):
     test_data = None
-    if args.subnetwork == 'dense' and args.eval_data in ['kprn_test_subset_1000', 'kprn_test']:
+    if args.subnetwork == 'dense' and eval_data in ['kprn_test_subset_1000', 'kprn_test']:
         with open("../data/song_test_data/bpr_matrix_test_dense_py2.pkl", 'rb') as handle:
             test_data = cPickle.load(handle)
-    elif args.subnetwork == 'rs' and args.eval_data in ['kprn_test_subset_1000', 'kprn_test']:
+    elif args.subnetwork == 'rs' and eval_data in ['kprn_test_subset_1000', 'kprn_test']:
         with open("../data/song_test_data/bpr_matrix_test_rs_py2.pkl", 'rb') as handle:
             test_data = cPickle.load(handle)
 
-    if args.eval_data == 'kprn_test_subset_1000':
-        return random.sample(test_data, 1000)
+    if eval_data == 'kprn_test_subset_1000':
+        return random.sample(test_data, 100) #TODO: change back to 1000 when needed
     return test_data
 
 
@@ -265,20 +265,30 @@ def main():
         print 'training...'
         print 'max_samples: ', max_samples
         train_new_model = not args.load_pretrained_model
-        model.train(train_data_mat, sampler, args.num_iters, train_new_model, max_samples)
-
-        # save the trained model
+        model.train(train_data_mat, sampler, 5, train_new_model, max_samples)
+        num_5epochs = args.num_iters/5
+        eval_data = 'kprn_test_subset_1000'
+        test_data = load_test_data(args, eval_data)
+        print 'test_data: ', len(test_data)
         # note that output_dir should contain information about
         # number of iterations, max sample size, num_factors, and learning rate
         create_directory(args.output_dir)
-        pickle.dump(model, open(args.output_dir + "/mf_model.pkl","wb"), protocol=2)
+        for i in range(num_5epochs):
+            print 'epoch: ',  (5*(i+1))
+            # eval and dump model every 5 epochs
+            evaluate(args, model, user_ix, song_ix, test_data)
+            pickle.dump(model, open(args.output_dir + "/mf_model_epoch_%d.pkl" % (5*(i+1)),"wb"), protocol=2)
+            train_new_model = False
+            model.train(train_data_mat, sampler, 5, train_new_model, max_samples)
+        evaluate(args, model, user_ix, song_ix, test_data)
+        pickle.dump(model, open(args.output_dir + "/mf_model_final.pkl","wb"), protocol=2)
 
-    if args.do_train or args.load_pretrained_model and args.do_eval:
+    if (args.do_train or args.load_pretrained_model) and args.do_eval:
         print 'prepare test data...'
         # note: the user and song indices have not been converted to the mf indices
         # the conversion will be done in the evaluate function
         if args.eval_data in ['kprn_test_subset_1000', 'kprn_test']:
-            test_data = load_test_data(args)
+            test_data = load_test_data(args, args.eval_data)
         elif args.eval_data == '10users':
             test_data = prep_test_data(test_user_song, train_user_song, \
                                        full_song_user, full_song_person, \
