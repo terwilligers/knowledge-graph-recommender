@@ -69,7 +69,7 @@ def parse_args():
                         help='learning rate')
     parser.add_argument('--l2_reg',
                         type=float,
-                        default=.001,
+                        default=.0001,
                         help='l2 regularization coefficent')
     parser.add_argument('--gamma',
                         type=float,
@@ -114,7 +114,7 @@ def get_num_lines(file_path):
 
 def load_data(song_person, person_song, user_song_all, song_user_all,
               song_user_split, user_song_split, neg_samples, e_to_ix, t_to_ix,
-              r_to_ix, kg_path_file, LEN_3_BRANCH, LEN_5_BRANCH, limit=10, version="train", samples=-1):
+              r_to_ix, kg_path_file, len_3_branch, len_5_branch, limit=10, version="train", samples=-1):
     '''
     Constructs paths for train/test data,
 
@@ -141,14 +141,14 @@ def load_data(song_person, person_song, user_song_all, song_user_all,
             if song_to_paths is None:
                 if version == "train":
                     song_to_paths = find_paths_user_to_songs(user, song_person, person_song,
-                                                                  song_user_split, user_song_split, 3, LEN_3_BRANCH)
+                                                                  song_user_split, user_song_split, 3, len_3_branch)
                     song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song,
-                                                                 song_user_split, user_song_split, 5, LEN_5_BRANCH)
+                                                                 song_user_split, user_song_split, 5, len_5_branch)
                 else: #for testing we use entire song_user and user_song dictionaries
                     song_to_paths = find_paths_user_to_songs(user, song_person, person_song,
-                                                                  song_user_all, user_song_all, 3, LEN_3_BRANCH)
+                                                                  song_user_all, user_song_all, 3, len_3_branch)
                     song_to_paths_len5 = find_paths_user_to_songs(user, song_person, person_song,
-                                                                 song_user_all, user_song_all, 5, LEN_5_BRANCH)
+                                                                 song_user_all, user_song_all, 5, len_5_branch)
                 for song in song_to_paths_len5.keys():
                     song_to_paths[song].extend(song_to_paths_len5[song])
 
@@ -249,8 +249,7 @@ def load_rel_ix_dicts(network_type):
 
 def main():
     '''
-    Main function for our graph recommendation project,
-    will eventually have command line args for different items
+    Main function for kprn model testing and training
     '''
     print("Main Loaded")
     random.seed(1)
