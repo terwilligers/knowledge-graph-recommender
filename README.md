@@ -1,11 +1,13 @@
 # knowledge-graph-recommender
-Comps replication repository on knowledge graphs for recommendation
+Comps replication repository on knowledge graphs for recommendation. We implemented the KPRN model described in https://arxiv.org/abs/1811.04540 on subnetworks of the KKBox song dataset, compared it to a Matrix Factorization baseline, and added extensions to the paper's model.
 
 ## KPRN General Usage Information
-To train and evaluate the KPRN model, first construct the knowledge graph with data-preparation.py. Then path-find, train, and evaluate using recommender.py.
+To train and evaluate the KPRN model, first download the `songs.csv` and `train.csv` from https://www.kaggle.com/c/kkbox-music-recommendation-challenge/data. Then construct a folder called `song_dataset` in `knowledge-graph-recommender/data` and place `songs.csv` and `train.csv` in `song_dataset`. These files are larger than the github limit.
+
+Then construct the knowledge graph with data-preparation.py, and path-find, train, and evaluate using recommender.py.
 
 ### Knowledge Graph Construction
-Run data-preparation.py to create relation dictionaries for KKBOX dataset
+Run data-preparation.py to create relation dictionaries from the KKBox dataset
 
 Command line arguments:
 
