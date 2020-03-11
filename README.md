@@ -1,6 +1,8 @@
 # knowledge-graph-recommender
 Comps replication repository on knowledge graphs for recommendation. We implemented the KPRN model described in https://arxiv.org/abs/1811.04540 on subnetworks of the KKBox song dataset, compared it to a Matrix Factorization baseline, and added extensions to the paper's model.
 
+Python version is 3.6.3, and packages can be installed via `./install_requirements`
+
 ## KPRN General Usage Information
 To train and evaluate the KPRN model, you can either use our random sample rs subnetwork, whose kg files are already in the github repository (skip to recommender.py command line arguments), or create a subnetwork yourself. 
 
