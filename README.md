@@ -1,5 +1,5 @@
 # knowledge-graph-recommender
-Comps replication repository on knowledge graphs for recommendation. We implemented the KPRN model described in https://arxiv.org/abs/1811.04540 on subnetworks of the KKBox song dataset, compared it to a Matrix Factorization baseline, and added extensions to the paper's model.
+Comps replication repository on knowledge graphs for recommendation. We implemented the KPRN model described in https://arxiv.org/abs/1811.04540 on subnetworks of the KKBox song dataset, compared it to a Matrix Factorization baseline, and added extensions to the paper's model. Our results are described in our paper: kprn_replication.pdf.
 
 Python version is 3.6.3, and packages can be installed via `./install_requirements`
 
@@ -33,7 +33,7 @@ In our project we used the dense and rs versions, where dense contains the top 1
 
 `--kg_path_file` designates the file to save/load train/test paths from
 
-`--user_limit` designates the max number of train/test users to find paths for
+`--user_limit` designates the max number of train/test users to find paths for (larger limit will improve results)
 
 `--model` designates the model to train or evaluate from
 
